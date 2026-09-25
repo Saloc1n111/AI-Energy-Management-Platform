@@ -1,0 +1,29 @@
+services:
+  api:
+    build: ./backend
+    container_name: energyhub-api
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DB_PATH: /app/storage/energy.db
+      DATA_DIR: /app/data
+      CORS_ORIGIN: http://localhost:5173
+      # Opcional: Gemini o Claude (sin key la plataforma usa el explainer determinista)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-25}
+      ANALYZE_ON_START: ${ANALYZE_ON_START:-false}
+    volumes:
+      - api-data:/app/storage
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  api-data:

@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bia-navy-950 text-slate-100 font-sans antialiased min-h-screen selection:bg-bia-turquoise/20 selection:text-bia-turquoise;
+    background-color: #040714;
+  }
+}
+
+/* Bia Design System Classes */
+.bia-panel {
+  background-color: #070b22;
+  border: 1px solid #1b265e;
+}
+
+.bia-card {
+  background-color: #0d1335;
+  border: 1px solid #1b265e;
+}
+
+.bia-card-hover {
+  transition: all 0.15s ease-in-out;
+}
+.bia-card-hover:hover {
+  background-color: #131b46;
+  border-color: #25347a;
+}
+
+/* Table styles */
+.dense-table th {
+  padding: 0.65rem 0.85rem;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8E9BB5;
+  font-weight: 600;
+  border-bottom: 1px solid #1b265e;
+  background-color: #070b22;
+}
+
+.dense-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid #10173d;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #040714;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b265e;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #25347a;
+}
