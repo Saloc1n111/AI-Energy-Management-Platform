@@ -4,28 +4,24 @@
 
 @layer base {
   body {
-    @apply bg-bia-navy-950 text-slate-100 font-sans antialiased min-h-screen selection:bg-bia-turquoise/20 selection:text-bia-turquoise;
-    background-color: #040714;
+    @apply bg-slate-50 text-slate-900 dark:bg-bia-navy-950 dark:text-slate-100 font-sans antialiased min-h-screen selection:bg-bia-turquoise/20 selection:text-bia-turquoise;
   }
 }
 
 /* Bia Design System Classes */
 .bia-panel {
-  background-color: #070b22;
-  border: 1px solid #1b265e;
+  @apply bg-white border border-slate-200/80 shadow-xs dark:bg-bia-navy-900 dark:border-bia-navy-750;
 }
 
 .bia-card {
-  background-color: #0d1335;
-  border: 1px solid #1b265e;
+  @apply bg-white border border-slate-200/80 shadow-xs dark:bg-bia-navy-850 dark:border-bia-navy-750;
 }
 
 .bia-card-hover {
-  transition: all 0.15s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .bia-card-hover:hover {
-  background-color: #131b46;
-  border-color: #25347a;
+  @apply bg-slate-50/80 border-slate-300 shadow-sm dark:bg-bia-navy-800 dark:border-bia-turquoise/30;
 }
 
 /* Table styles */
@@ -34,15 +30,13 @@
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #8E9BB5;
   font-weight: 600;
-  border-bottom: 1px solid #1b265e;
-  background-color: #070b22;
+  @apply text-slate-500 bg-slate-50 border-b border-slate-200/80 dark:text-slate-400 dark:bg-bia-navy-900 dark:border-bia-navy-750;
 }
 
 .dense-table td {
   padding: 0.75rem 0.85rem;
-  border-bottom: 1px solid #10173d;
+  @apply border-b border-slate-100 text-slate-800 dark:border-bia-navy-750/50 dark:text-slate-200;
 }
 
 /* Scrollbars */
@@ -51,7 +45,7 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #040714;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #1b265e;
@@ -59,4 +53,14 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #25347a;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

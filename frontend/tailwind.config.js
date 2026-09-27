@@ -11,7 +11,7 @@ export default {
         bia: {
           turquoise: '#08DDBC',
           'turquoise-hover': '#06c7a8',
-          'turquoise-dim': '#08ddbc1f',
+          'turquoise-dim': '#08ddbc14',
           navy: {
             950: '#040714', // Deepest midnight canvas
             900: '#070b22', // Nav, sidebar, major panels
@@ -27,20 +27,9 @@ export default {
           amber: '#FFB703',
           emerald: '#08DDBC',
         },
-        zinc: {
-          950: '#040714',
-          900: '#070b22',
-          850: '#0d1335',
-          800: '#131b46',
-          750: '#1b265e',
-          700: '#25347a',
-          600: '#384a9e',
-          500: '#64748B',
-          400: '#94A3B8',
-          300: '#CBD5E1',
-          200: '#E2E8F0',
-          100: '#F8FAFC',
-        },
+      },
+      boxShadow: {
+        xs: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],

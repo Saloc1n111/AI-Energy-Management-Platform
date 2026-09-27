@@ -18,17 +18,17 @@ export const TremorDeltaBadge: React.FC<TremorDeltaBadgeProps> = ({
   const isZero = Math.abs(value) < 0.1;
   const isPositive = value > 0;
 
-  let badgeColor = 'bg-bia-navy-800 text-slate-300 border-bia-navy-700';
+  let badgeColor = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.03] dark:text-slate-400 dark:border-white/[0.06]';
 
   if (!isZero) {
     if (value > 15 || isSeverityCritical) {
-      badgeColor = 'bg-bia-coral/15 text-bia-coral border-bia-coral/30';
+      badgeColor = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-bia-coral/[0.08] dark:text-bia-coral dark:border-bia-coral/25';
     } else if (value > 5) {
-      badgeColor = 'bg-bia-amber/15 text-bia-amber border-bia-amber/30';
+      badgeColor = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-bia-amber/[0.08] dark:text-bia-amber dark:border-bia-amber/25';
     } else if (value < -15) {
-      badgeColor = 'bg-bia-purple/15 text-bia-purple border-bia-purple/30';
+      badgeColor = 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-bia-purple/[0.08] dark:text-bia-purple dark:border-bia-purple/25';
     } else {
-      badgeColor = 'bg-bia-turquoise/15 text-bia-turquoise border-bia-turquoise/30';
+      badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-bia-turquoise/[0.08] dark:text-bia-turquoise dark:border-bia-turquoise/25';
     }
   }
 
@@ -37,14 +37,14 @@ export const TremorDeltaBadge: React.FC<TremorDeltaBadgeProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 font-mono font-bold rounded-md border px-2 py-0.5 tracking-tight transition-colors',
-        size === 'sm' ? 'text-[11px]' : 'text-xs',
+        'inline-flex items-center gap-1 font-mono font-medium rounded-full border px-2 py-0.5 tracking-tight transition-colors',
+        size === 'sm' ? 'text-[10px]' : 'text-xs',
         badgeColor,
         className
       )}
     >
       {isZero ? (
-        <Minus className="w-3 h-3 opacity-70" />
+        <Minus className="w-3 h-3 opacity-60" />
       ) : isPositive ? (
         <TrendingUp className="w-3 h-3" />
       ) : (

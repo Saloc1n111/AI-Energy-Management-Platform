@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useLocation, useParams, Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardDTO } from './types/dashboard';
-import { api } from './api/client';
+import { api, getStoredToken, getStoredUser } from './api/client';
+import { User } from './types/auth';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar, ViewType } from './components/layout/Sidebar';
 import { RunAnalysisModal } from './components/analysis/RunAnalysisModal';
+import { AICopilotDrawer, CopilotContext } from './components/copilot/AICopilotDrawer';
+import { TechnicalVisitModal } from './components/modals/TechnicalVisitModal';
+import { AlertDiagnosisDrawer } from './components/dashboard/AlertDiagnosisDrawer';
 import { LoginView } from './views/LoginView';
 import { DashboardView } from './views/DashboardView';
 import { MetersView } from './views/MetersView';
@@ -11,21 +16,134 @@ import { MeterDetailView } from './views/MeterDetailView';
 import { AnomaliesView } from './views/AnomaliesView';
 import { InvestigationView } from './views/InvestigationView';
 
+interface MeterDetailWrapperProps {
+  onBack: () => void;
+  onInvestigateAnomaly: (id: string) => void;
+  onRunAnalysis: () => void;
+  onAnalysisComplete: () => void;
+  onAskAI: (ctx: CopilotContext) => void;
+  onRequestTechnicalVisit: (meterId: string) => void;
+  selectedMeterId: string;
+}
+
+function MeterDetailWrapper(props: MeterDetailWrapperProps) {
+  const { meterId } = useParams<{ meterId: string }>();
+  return <MeterDetailView {...props} meterId={meterId || props.selectedMeterId || 'M-101'} />;
+}
+
+interface InvestigationWrapperProps {
+  onBack: () => void;
+  onNavigateToMeter: (meterId: string) => void;
+  onAskAI: (ctx: CopilotContext) => void;
+  onRequestTechnicalVisit: (meterId: string) => void;
+  selectedAnomalyId: string;
+}
+
+function InvestigationWrapper(props: InvestigationWrapperProps) {
+  const { anomalyId } = useParams<{ anomalyId: string }>();
+  return <InvestigationView {...props} anomalyId={anomalyId || props.selectedAnomalyId || ''} />;
+}
+
 export function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Default true for seamless evaluation
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedMeterId, setSelectedMeterId] = useState<string>('M-109');
-  const [selectedAnomalyId, setSelectedAnomalyId] = useState<string>('anm_m109_20260912T1400');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => getStoredUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!getStoredToken());
+  const [selectedMeterId, setSelectedMeterId] = useState<string>('M-101');
+  const [selectedAnomalyId, setSelectedAnomalyId] = useState<string>('');
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [copilotContext, setCopilotContext] = useState<CopilotContext | null>(null);
+  const [isVisitModalOpen, setIsVisitModalOpen] = useState(false);
+  const [visitMeterId, setVisitMeterId] = useState('M-101');
   const [summary, setSummary] = useState<DashboardDTO | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isDiagnosisDrawerOpen, setIsDiagnosisDrawerOpen] = useState(false);
+  const [diagnosisMeterId, setDiagnosisMeterId] = useState('M-101');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('bia_sidebar_collapsed');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isSidebarPinned, setIsSidebarPinned] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('bia_sidebar_pinned');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const mainContainerRef = useRef<HTMLElement>(null);
+
+  // Derive current view from URL route
+  const currentView: ViewType = useMemo(() => {
+    const path = location.pathname;
+    if (path.startsWith('/meters/') && path !== '/meters') return 'meter-detail';
+    if (path === '/meters') return 'meters';
+    if (path.startsWith('/anomalies/') && path !== '/anomalies') return 'investigation';
+    if (path === '/anomalies') return 'anomalies';
+    return 'dashboard';
+  }, [location.pathname]);
+
+  // Keyboard shortcuts: Ctrl+B / Cmd+B to toggle sidebar, Escape to collapse unpinned
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        handleToggleSidebar();
+      } else if (e.key === 'Escape') {
+        if (!isSidebarCollapsed && !isSidebarPinned) {
+          setIsSidebarCollapsed(true);
+          try {
+            localStorage.setItem('bia_sidebar_collapsed', 'true');
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSidebarCollapsed, isSidebarPinned]);
+
+  const handleToggleSidebar = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsMobileMenuOpen((prev) => !prev);
+    } else {
+      setIsSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem('bia_sidebar_collapsed', String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  const handleTogglePin = () => {
+    setIsSidebarPinned((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('bia_sidebar_pinned', String(next));
+      } catch {}
+      if (next) {
+        setIsSidebarCollapsed(false);
+        try {
+          localStorage.setItem('bia_sidebar_collapsed', 'false');
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   const fetchSummary = async () => {
     setLoading(true);
     try {
       const data = await api.getDashboardSummary();
       setSummary(data);
-      // Auto-set the first high priority anomaly id if available
       if (data.top_priority && data.top_priority.length > 0) {
         setSelectedAnomalyId(data.top_priority[0].id);
       }
@@ -37,98 +155,257 @@ export function App() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!isAuthenticated) return;
+
+    fetchSummary();
+
+    const interval = setInterval(() => {
+      api.getDashboardSummary()
+        .then((data) => {
+          setSummary(data);
+        })
+        .catch(() => {});
+    }, 4000);
+
+    const handleAnalysisCompleted = () => {
       fetchSummary();
-    }
+    };
+    window.addEventListener('bia:analysis-completed', handleAnalysisCompleted);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('bia:analysis-completed', handleAnalysisCompleted);
+    };
   }, [isAuthenticated]);
+
+  const openAnomaliesCount = summary?.anomalies_detected !== undefined
+    ? summary.anomalies_detected
+    : (summary?.top_priority?.length ?? 0);
+
+  const handleResetAnalysis = async () => {
+    try {
+      await api.resetAnalysis();
+      await fetchSummary();
+      window.dispatchEvent(new CustomEvent('bia:analysis-completed'));
+    } catch (err) {
+      console.error('Error resetting analysis:', err);
+    }
+  };
 
   const handleNavigate = (view: ViewType, contextId?: string) => {
     if (view === 'meter-detail' && contextId) {
       setSelectedMeterId(contextId);
-    }
-    if (view === 'investigation' && contextId) {
+      navigate(`/meters/${contextId}`);
+    } else if (view === 'meters') {
+      navigate('/meters');
+    } else if (view === 'investigation' && contextId) {
       setSelectedAnomalyId(contextId);
+      navigate(`/anomalies/${contextId}`);
+    } else if (view === 'anomalies') {
+      navigate('/anomalies');
+    } else {
+      fetchSummary();
+      navigate('/dashboard');
     }
-    setCurrentView(view);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsMobileMenuOpen(false);
+    if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
-  // If user enters login view
+  const handleAskAI = (ctx: CopilotContext) => {
+    setCopilotContext(ctx);
+    setIsCopilotOpen(true);
+  };
+
+  const handleRequestTechnicalVisit = (meterId: string) => {
+    setVisitMeterId(meterId);
+    setIsVisitModalOpen(true);
+  };
+
+  const handleLoginSuccess = (user: User) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    navigate('/dashboard');
+  };
+
+  const handleLogout = () => {
+    api.logout();
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+  };
+
   if (!isAuthenticated) {
-    return <LoginView onLogin={() => setIsAuthenticated(true)} />;
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const isPipelineRunning = Boolean(
+    isAnalysisModalOpen ||
+    summary?.last_analysis?.status === 'RUNNING' ||
+    summary?.last_analysis?.status === 'IN_PROGRESS' ||
+    summary?.last_analysis?.status === 'PENDING'
+  );
+
   return (
-    <div className="min-h-screen flex flex-col bg-bia-navy-950 text-slate-100 selection:bg-bia-turquoise/20 selection:text-bia-turquoise font-sans antialiased">
+    <div className="h-screen w-full flex flex-col bg-slate-50 text-slate-900 dark:bg-bia-navy-950 dark:text-slate-100 selection:bg-bia-turquoise/20 selection:text-bia-turquoise font-sans antialiased transition-colors duration-200 overflow-hidden">
       {/* Top Navbar */}
       <Navbar
         onRunAnalysis={() => setIsAnalysisModalOpen(true)}
-        isAnalyzing={isAnalysisModalOpen}
+        isAnalyzing={isPipelineRunning}
+        onOpenCopilot={() =>
+          handleAskAI({
+            type: 'general',
+            id: 'global_navbar',
+            title: 'Asesoría Integral de Energía Bia',
+          })
+        }
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onToggleSidebar={handleToggleSidebar}
+        isSidebarCollapsed={isSidebarCollapsed}
+        isMobileOpen={isMobileMenuOpen}
       />
 
       {/* Main Body with Sidebar + Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex relative min-h-0 w-full overflow-hidden">
         {/* Sidebar */}
         <Sidebar
           currentView={currentView}
           onNavigate={handleNavigate}
-          openAnomaliesCount={summary?.anomalies_detected ?? 4}
-          criticalMeterId="M-109"
+          openAnomaliesCount={openAnomaliesCount}
+          selectedMeterId={selectedMeterId}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+          isPinned={isSidebarPinned}
+          onTogglePin={handleTogglePin}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
 
         {/* Dynamic View Container */}
-        <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-y-auto">
-          {currentView === 'dashboard' && (
-            <DashboardView
-              summary={summary}
-              loading={loading}
-              onRunAnalysis={() => setIsAnalysisModalOpen(true)}
-              onNavigateToMeter={(id) => handleNavigate('meter-detail', id)}
-              onNavigateToAnomalies={() => handleNavigate('anomalies')}
-              onNavigateToInvestigation={(id) => handleNavigate('investigation', id)}
-            />
-          )}
-
-          {currentView === 'meters' && (
-            <MetersView
-              onSelectMeter={(id) => handleNavigate('meter-detail', id)}
-            />
-          )}
-
-          {currentView === 'meter-detail' && (
-            <MeterDetailView
-              meterId={selectedMeterId}
-              onBack={() => handleNavigate('meters')}
-              onInvestigateAnomaly={(anomalyId) => handleNavigate('investigation', anomalyId)}
-            />
-          )}
-
-          {currentView === 'anomalies' && (
-            <AnomaliesView
-              onInvestigate={(anomalyId) => handleNavigate('investigation', anomalyId)}
-              onSelectMeter={(id) => handleNavigate('meter-detail', id)}
-            />
-          )}
-
-          {currentView === 'investigation' && (
-            <InvestigationView
-              anomalyId={selectedAnomalyId}
-              onBack={() => handleNavigate('anomalies')}
-              onNavigateToMeter={(id) => handleNavigate('meter-detail', id)}
-            />
-          )}
+        <main
+          ref={mainContainerRef}
+          className="flex-1 overflow-y-auto min-h-0 w-full"
+        >
+          <div className="p-4 sm:p-6 lg:p-7 max-w-7xl mx-auto w-full pb-16 md:pb-6">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <DashboardView
+                    summary={summary}
+                    loading={loading}
+                    onRunAnalysis={() => setIsAnalysisModalOpen(true)}
+                    onResetAnalysis={handleResetAnalysis}
+                    onNavigateToMeter={(id: string) => handleNavigate('meter-detail', id)}
+                    onNavigateToAnomalies={() => handleNavigate('anomalies')}
+                    onNavigateToInvestigation={(id: string) => handleNavigate('investigation', id)}
+                    onAskAI={handleAskAI}
+                    onRequestTechnicalVisit={handleRequestTechnicalVisit}
+                    onOpenDiagnosisDrawer={(meterId) => {
+                      if (meterId) setDiagnosisMeterId(meterId);
+                      setIsDiagnosisDrawerOpen(true);
+                    }}
+                  />
+                }
+              />
+              <Route
+                path="/meters"
+                element={
+                  <MetersView
+                    onSelectMeter={(id: string) => handleNavigate('meter-detail', id)}
+                  />
+                }
+              />
+              <Route
+                path="/meters/:meterId"
+                element={
+                  <MeterDetailWrapper
+                    onBack={() => handleNavigate('dashboard')}
+                    onInvestigateAnomaly={(anomalyId: string) => handleNavigate('investigation', anomalyId)}
+                    onRunAnalysis={() => setIsAnalysisModalOpen(true)}
+                    onAnalysisComplete={fetchSummary}
+                    onAskAI={handleAskAI}
+                    onRequestTechnicalVisit={handleRequestTechnicalVisit}
+                    selectedMeterId={selectedMeterId}
+                  />
+                }
+              />
+              <Route
+                path="/anomalies"
+                element={
+                  <AnomaliesView
+                    onInvestigate={(id: string) => handleNavigate('investigation', id)}
+                    onSelectMeter={(meterId: string) => handleNavigate('meter-detail', meterId)}
+                    onAskAI={handleAskAI}
+                    onRequestTechnicalVisit={handleRequestTechnicalVisit}
+                  />
+                }
+              />
+              <Route
+                path="/anomalies/:anomalyId"
+                element={
+                  <InvestigationWrapper
+                    onBack={() => handleNavigate('anomalies')}
+                    onNavigateToMeter={(id: string) => handleNavigate('meter-detail', id)}
+                    onAskAI={handleAskAI}
+                    onRequestTechnicalVisit={handleRequestTechnicalVisit}
+                    selectedAnomalyId={selectedAnomalyId}
+                  />
+                }
+              />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </div>
         </main>
       </div>
 
-      {/* 7-Step AI Analysis Pipeline Modal */}
+      {/* Analysis Pipeline Modal */}
       <RunAnalysisModal
         isOpen={isAnalysisModalOpen}
         onClose={() => setIsAnalysisModalOpen(false)}
-        onComplete={(run) => {
+        onComplete={() => {
           fetchSummary();
         }}
+      />
+
+      {/* AI Copilot Drawer */}
+      <AICopilotDrawer
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        context={copilotContext}
+        onRequestTechnicalVisit={handleRequestTechnicalVisit}
         onNavigateToMeter={(meterId) => handleNavigate('meter-detail', meterId)}
-        onNavigateToAnomalies={() => handleNavigate('anomalies')}
+      />
+
+      {/* Technical Visit Request Modal */}
+      <TechnicalVisitModal
+        isOpen={isVisitModalOpen}
+        onClose={() => setIsVisitModalOpen(false)}
+        defaultMeterId={visitMeterId}
+        onSuccess={() => {
+          fetchSummary();
+        }}
+      />
+
+      {/* Interactive Alert Diagnosis Suite Drawer */}
+      <AlertDiagnosisDrawer
+        isOpen={isDiagnosisDrawerOpen}
+        onClose={() => setIsDiagnosisDrawerOpen(false)}
+        selectedMeterId={diagnosisMeterId}
+        selectedAnomalyId={selectedAnomalyId}
+        anomalies={summary?.top_priority}
+        onRequestTechnicalVisit={handleRequestTechnicalVisit}
+        onAskAI={handleAskAI}
+        onNavigateToInvestigation={(anomalyId) => {
+          setIsDiagnosisDrawerOpen(false);
+          handleNavigate('investigation', anomalyId);
+        }}
+        onNavigateToMeter={(meterId) => {
+          setIsDiagnosisDrawerOpen(false);
+          handleNavigate('meter-detail', meterId);
+        }}
       />
     </div>
   );

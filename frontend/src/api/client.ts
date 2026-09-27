@@ -3,6 +3,47 @@ import { MeterDTO, MeterDetailDTO } from '../types/meter';
 import { ReadingDTO } from '../types/reading';
 import { AnomalyDTO } from '../types/anomaly';
 import { RunDTO } from '../types/analysis';
+import { User, LoginCredentials, AuthResponse } from '../types/auth';
+
+const TOKEN_KEY = 'bia_auth_token';
+const USER_KEY = 'bia_auth_user';
+
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  const userStr = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+  if (!userStr) return null;
+  try {
+    return JSON.parse(userStr) as User;
+  } catch {
+    return null;
+  }
+}
+
+export function saveAuthSession(token: string, user: User, remember: boolean = true): void {
+  if (typeof window === 'undefined') return;
+  // Limpiar antes de guardar
+  clearAuthSession();
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+}
+
+export function clearAuthSession(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
 
 function getBaseUrl(): string {
   if (import.meta.env.VITE_API_BASE_URL) {
@@ -19,15 +60,19 @@ const BASE_URL = getBaseUrl();
 
 async function fetchJSON<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
+  const token = getStoredToken();
+
+  const baseHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string>),
+  };
   
   let response: Response;
   try {
     response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: baseHeaders,
     });
   } catch (err: any) {
     // If relative path fails for any reason, fallback to direct port 8080
@@ -37,10 +82,7 @@ async function fetchJSON<T>(endpoint: string, options: RequestInit = {}): Promis
       try {
         response = await fetch(fallbackUrl, {
           ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
+          headers: baseHeaders,
         });
       } catch (fallbackErr: any) {
         throw new Error(`No se pudo conectar con el servidor de Bia en :8080. Verifique que el servicio esté activo (${err.message}).`);
@@ -58,17 +100,38 @@ async function fetchJSON<T>(endpoint: string, options: RequestInit = {}): Promis
       if (response.status === 409 && errorJson.code === 'ALREADY_RUNNING') {
         return (await api.getAnalysisStatus('latest')) as unknown as T;
       }
-      errorDetail = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      errorDetail = errorJson.error || errorJson.message || JSON.stringify(errorJson);
     } catch {
       // fallback to statusText
     }
-    throw new Error(`API Error [${response.status}] ${endpoint}: ${errorDetail}`);
+    throw new Error(errorDetail || `API Error [${response.status}] ${endpoint}`);
   }
 
   return response.json();
 }
 
 export const api = {
+  // Autenticación
+  login: async (creds: LoginCredentials): Promise<AuthResponse> => {
+    const res = await fetchJSON<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: creds.identifier,
+        password: creds.password,
+      }),
+    });
+    saveAuthSession(res.token, res.user, creds.rememberMe ?? true);
+    return res;
+  },
+
+  getMe: (): Promise<User> => {
+    return fetchJSON<User>('/auth/me');
+  },
+
+  logout: (): void => {
+    clearAuthSession();
+  },
+
   // Dashboard
   getDashboardSummary: (): Promise<DashboardDTO> => {
     return fetchJSON<DashboardDTO>('/dashboard/summary');
@@ -139,5 +202,33 @@ export const api = {
 
   getAnalysisStatus: (runId: string = 'latest'): Promise<RunDTO> => {
     return fetchJSON<RunDTO>(`/ai/analysis/${encodeURIComponent(runId)}`);
+  },
+
+  resetAnalysis: (): Promise<{ status: string; message: string }> => {
+    return fetchJSON<{ status: string; message: string }>('/ai/reset', {
+      method: 'POST',
+      body: '{}',
+    });
+  },
+
+  // AI Copilot & Technical Visits
+  askAI: (req: import('../types/copilot').AskAIRequest): Promise<import('../types/copilot').AskAIResponse> => {
+    return fetchJSON<import('../types/copilot').AskAIResponse>('/ai/ask', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  requestTechnicalVisit: (
+    req: import('../types/copilot').TechnicalVisitRequest
+  ): Promise<import('../types/copilot').TechnicalVisitResponse> => {
+    return fetchJSON<import('../types/copilot').TechnicalVisitResponse>('/technical-visits', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  },
+
+  getTechnicalVisits: (): Promise<{ data: import('../types/copilot').TechnicalVisitResponse[]; total: number }> => {
+    return fetchJSON<{ data: import('../types/copilot').TechnicalVisitResponse[]; total: number }>('/technical-visits');
   },
 };

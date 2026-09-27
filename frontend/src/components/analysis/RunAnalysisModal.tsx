@@ -105,24 +105,24 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Bia Energy Engine — Pipeline de Diagnóstico (7 Fases)"
+      title="Run AI Analysis — Pipeline de Inteligencia Artificial (7 Fases)"
       subtitle="Lecturas → Baseline → Detección → Correlación → Eventos → Explicación → Recomendación"
       maxWidth="2xl"
     >
       <div className="space-y-5">
         {/* Progress header */}
-        <div className="rounded-xl bg-bia-navy-950 border border-bia-navy-750 p-3.5">
+        <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 dark:bg-white/[0.02] dark:border-white/[0.06]">
           <div className="flex items-center justify-between text-xs mb-2">
-            <span className="font-mono text-slate-400">
+            <span className="font-mono text-slate-500 dark:text-slate-400">
               Estado de Ejecución:
             </span>
             <span
-              className={`font-mono text-xs font-bold uppercase ${
+              className={`font-mono text-xs font-semibold uppercase ${
                 isCompleted
-                  ? 'text-bia-turquoise'
+                  ? 'text-emerald-700 dark:text-bia-turquoise'
                   : isFailed
-                  ? 'text-bia-coral'
-                  : 'text-white'
+                  ? 'text-rose-600 dark:text-bia-coral'
+                  : 'text-slate-900 dark:text-white'
               }`}
             >
               {run?.status || (loading ? 'INICIANDO...' : 'LISTO')}
@@ -130,14 +130,14 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-bia-navy-900 rounded-full h-1.5 overflow-hidden border border-bia-navy-750">
+          <div className="w-full bg-slate-200/70 dark:bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 isCompleted
-                  ? 'bg-bia-turquoise shadow-sm shadow-bia-turquoise'
+                  ? 'bg-emerald-600 dark:bg-bia-turquoise shadow-xs'
                   : isFailed
-                  ? 'bg-bia-coral'
-                  : 'bg-bia-turquoise'
+                  ? 'bg-rose-600 dark:bg-bia-coral'
+                  : 'bg-cyan-600 dark:bg-bia-turquoise'
               }`}
               style={{
                 width: `${
@@ -158,28 +158,28 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
             return (
               <div
                 key={step.name}
-                className={`flex items-start gap-3 p-2.5 rounded-lg border transition-all ${
+                className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
                   isStepRunning
-                    ? 'bg-bia-navy-800 border-bia-turquoise/40 shadow-sm shadow-bia-turquoise/10'
+                    ? 'bg-cyan-50/70 border-cyan-200 shadow-xs dark:bg-bia-turquoise/[0.06] dark:border-bia-turquoise/30'
                     : isStepDone
-                    ? 'bg-bia-navy-950/70 border-bia-navy-750'
-                    : 'bg-bia-navy-950/30 border-bia-navy-800 opacity-60'
+                    ? 'bg-slate-50 border-slate-200/70 dark:bg-white/[0.02] dark:border-white/[0.05]'
+                    : 'bg-transparent border-slate-100 dark:border-white/[0.03] opacity-40'
                 }`}
               >
                 {/* Step icon / indicator */}
                 <div
-                  className={`p-1.5 rounded-md border mt-0.5 ${
+                  className={`p-1.5 rounded-lg border mt-0.5 ${
                     isStepRunning
-                      ? 'bg-bia-navy-900 text-bia-turquoise border-bia-turquoise/40'
+                      ? 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-white/[0.04] dark:text-bia-turquoise dark:border-bia-turquoise/30'
                       : isStepDone
-                      ? 'bg-bia-turquoise/15 text-bia-turquoise border-bia-turquoise/30'
-                      : 'bg-bia-navy-900 text-slate-500 border-bia-navy-750'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-bia-turquoise/[0.08] dark:text-bia-turquoise dark:border-bia-turquoise/20'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/[0.02] dark:text-slate-500 dark:border-white/[0.05]'
                   }`}
                 >
                   {isStepRunning ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-bia-turquoise" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-700 dark:text-bia-turquoise" />
                   ) : isStepDone ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-bia-turquoise" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-bia-turquoise" />
                   ) : (
                     STEP_ICONS[step.name] || <span className="text-xs font-mono">{idx + 1}</span>
                   )}
@@ -189,27 +189,27 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`text-xs font-semibold font-mono uppercase ${
-                        isStepRunning ? 'text-bia-turquoise' : isStepDone ? 'text-slate-200' : 'text-slate-400'
+                      className={`text-xs font-medium font-mono uppercase ${
+                        isStepRunning ? 'text-cyan-800 dark:text-bia-turquoise' : isStepDone ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400'
                       }`}
                     >
                       Fase {idx + 1}: {step.label}
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase">
                       {step.status}
                     </span>
                   </div>
 
                   {step.detail ? (
-                    <p className="mt-0.5 text-xs text-slate-300 font-normal leading-relaxed">
+                    <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300 font-normal leading-relaxed">
                       {step.detail}
                     </p>
                   ) : isStepRunning ? (
-                    <p className="mt-0.5 text-xs text-bia-turquoise/90 animate-pulse font-normal">
+                    <p className="mt-0.5 text-xs text-cyan-700 dark:text-bia-turquoise/90 animate-pulse font-normal">
                       Calculando parámetros y ejecutando inferencia Bia...
                     </p>
                   ) : isStepPending ? (
-                    <p className="mt-0.5 text-xs text-slate-500">En espera de fase anterior...</p>
+                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">En espera de fase anterior...</p>
                   ) : null}
                 </div>
               </div>
@@ -219,28 +219,30 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
 
         {/* Success Banner when Completed */}
         {isCompleted && run && (
-          <div className="p-3.5 rounded-xl bg-bia-navy-950 border border-bia-turquoise/30 space-y-3">
-            <div className="flex items-center gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-bia-turquoise shrink-0" />
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3 shadow-xs dark:bg-bia-turquoise/[0.08] dark:border-bia-turquoise/35 animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 dark:bg-bia-turquoise/15 dark:border-bia-turquoise/30 dark:text-bia-turquoise">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-bia-turquoise" />
+              </div>
               <div>
-                <p className="text-xs font-bold text-white">
-                  {run.message || 'Diagnóstico completado con éxito'}
+                <p className="text-sm font-bold text-slate-900 dark:text-white font-mono tracking-tight">
+                  {run.message || '4 anomalías detectadas · 2 requieren atención prioritaria'}
                 </p>
-                <p className="text-[11px] text-slate-400 font-sans">
-                  M-109 priorizado como Anomalía Real Crítica (+110.7%).
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-sans mt-0.5">
+                  Pipeline finalizado: Subestación M-109 priorizada como Anomalía Real Crítica (+110.7%).
                 </p>
               </div>
             </div>
 
             {/* Action buttons */}
-            <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-bia-navy-750">
+            <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-emerald-100 dark:border-white/[0.05]">
               {onNavigateToMeter && (
                 <button
                   onClick={() => {
                     onClose();
                     onNavigateToMeter('M-109');
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bia-coral hover:bg-rose-500 text-white text-xs font-bold transition-colors shadow-sm shadow-bia-coral/30"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
                 >
                   <ShieldAlert className="w-3.5 h-3.5" />
                   <span>Investigar M-109</span>
@@ -254,7 +256,7 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
                     onClose();
                     onNavigateToAnomalies();
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bia-navy-900 hover:bg-bia-navy-800 text-bia-turquoise text-xs font-bold border border-bia-turquoise/30 transition-colors"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-medium border border-slate-200 shadow-xs transition-colors cursor-pointer dark:bg-white/[0.03] dark:hover:bg-bia-turquoise/[0.1] dark:text-bia-turquoise dark:border-bia-turquoise/20"
                 >
                   <span>Ver las 4 Incidencias</span>
                 </button>
@@ -262,7 +264,7 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
 
               <button
                 onClick={onClose}
-                className="ml-auto px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                className="ml-auto px-3 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
               >
                 Cerrar
               </button>
@@ -272,11 +274,11 @@ export const RunAnalysisModal: React.FC<RunAnalysisModalProps> = ({
 
         {/* Error state */}
         {isFailed && (
-          <div className="p-3.5 rounded-xl bg-bia-coral/15 border border-bia-coral/30 text-bia-coral text-xs flex items-center gap-3">
-            <AlertCircle className="w-4 h-4 shrink-0 text-bia-coral" />
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-3 dark:bg-bia-coral/[0.08] dark:border-bia-coral/25 dark:text-bia-coral">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-bia-coral" />
             <div>
-              <p className="font-bold">Error en la ejecución:</p>
-              <p className="text-slate-300 mt-0.5">{run?.error || error}</p>
+              <p className="font-semibold">Error en la ejecución:</p>
+              <p className="text-slate-600 dark:text-slate-300 mt-0.5">{run?.error || error}</p>
             </div>
           </div>
         )}

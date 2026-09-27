@@ -8,9 +8,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('bia_theme');
+          if (saved === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-[#040714] text-[#F8FAFC] min-h-screen font-sans selection:bg-[#08DDBC]/30 selection:text-[#08DDBC]">
-    <div id="root"></div>
+  <body class="bg-slate-50 text-slate-900 dark:bg-bia-navy-950 dark:text-slate-100 min-h-screen font-sans selection:bg-bia-turquoise/30 selection:text-bia-turquoise">
+    <div id="root" class="min-h-screen"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

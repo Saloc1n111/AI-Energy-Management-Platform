@@ -10,55 +10,59 @@ interface BadgeProps {
 export const Badge: React.FC<BadgeProps> = ({ variant = 'status', value, size = 'md', className = '' }) => {
   const val = (value || '').toUpperCase();
 
-  let styles = 'bg-bia-navy-800 text-slate-300 border-bia-navy-700';
+  let styles = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.03] dark:text-slate-300 dark:border-white/[0.06]';
 
   if (variant === 'status') {
     switch (val) {
       case 'OK':
       case 'RESOLVED':
-        styles = 'bg-bia-turquoise/15 text-bia-turquoise border-bia-turquoise/30';
+        styles = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-bia-turquoise/[0.08] dark:text-bia-turquoise dark:border-bia-turquoise/20';
         break;
       case 'ALERT':
       case 'ACKNOWLEDGED':
-        styles = 'bg-bia-amber/15 text-bia-amber border-bia-amber/30';
+        styles = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-bia-amber/[0.08] dark:text-bia-amber dark:border-bia-amber/20';
         break;
       case 'CRITICAL':
       case 'OPEN':
-        styles = 'bg-bia-coral/15 text-bia-coral border-bia-coral/30';
+        styles = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-bia-coral/[0.08] dark:text-bia-coral dark:border-bia-coral/20';
+        break;
+      case 'ONLINE':
+      case 'CONNECTED':
+        styles = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/[0.08] dark:text-emerald-300 dark:border-emerald-500/20';
         break;
       default:
-        styles = 'bg-bia-navy-800 text-slate-400 border-bia-navy-700';
+        styles = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.03] dark:text-slate-400 dark:border-white/[0.06]';
     }
   } else if (variant === 'severity') {
     switch (val) {
       case 'HIGH':
-        styles = 'bg-bia-coral/15 text-bia-coral border-bia-coral/30 font-semibold';
+        styles = 'bg-rose-50 text-rose-700 border-rose-200 font-medium dark:bg-bia-coral/[0.08] dark:text-bia-coral dark:border-bia-coral/20';
         break;
       case 'MEDIUM':
-        styles = 'bg-bia-amber/15 text-bia-amber border-bia-amber/30 font-medium';
+        styles = 'bg-amber-50 text-amber-700 border-amber-200 font-medium dark:bg-bia-amber/[0.08] dark:text-bia-amber dark:border-bia-amber/20';
         break;
       case 'LOW':
-        styles = 'bg-bia-turquoise/15 text-bia-turquoise border-bia-turquoise/30';
+        styles = 'bg-cyan-50 text-cyan-700 border-cyan-200 font-medium dark:bg-bia-turquoise/[0.08] dark:text-bia-turquoise dark:border-bia-turquoise/20';
         break;
       default:
-        styles = 'bg-bia-navy-800 text-slate-400 border-bia-navy-700';
+        styles = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.03] dark:text-slate-400 dark:border-white/[0.06]';
     }
   } else if (variant === 'type') {
     switch (val) {
       case 'REAL_ANOMALY':
-        styles = 'bg-bia-coral/15 text-bia-coral border-bia-coral/30 font-semibold';
+        styles = 'bg-rose-50 text-rose-700 border-rose-200 font-medium dark:bg-bia-coral/[0.08] dark:text-bia-coral dark:border-bia-coral/20';
         break;
       case 'DATA_QUALITY':
-        styles = 'bg-bia-purple/15 text-bia-purple border-bia-purple/30 font-medium';
+        styles = 'bg-purple-50 text-purple-700 border-purple-200 font-medium dark:bg-bia-purple/[0.08] dark:text-bia-purple dark:border-bia-purple/20';
         break;
       case 'EXPLAINABLE_ANOMALY':
-        styles = 'bg-sky-500/15 text-sky-300 border-sky-500/30 font-medium';
+        styles = 'bg-sky-50 text-sky-700 border-sky-200 font-medium dark:bg-sky-400/[0.08] dark:text-sky-300 dark:border-sky-400/20';
         break;
       case 'FALSE_POSITIVE':
-        styles = 'bg-bia-navy-800 text-slate-400 border-bia-navy-700 font-medium';
+        styles = 'bg-slate-100 text-slate-600 border-slate-200 font-medium dark:bg-white/[0.03] dark:text-slate-400 dark:border-white/[0.06]';
         break;
       default:
-        styles = 'bg-bia-navy-800 text-slate-300 border-bia-navy-700';
+        styles = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/[0.03] dark:text-slate-300 dark:border-white/[0.06]';
     }
   }
 
@@ -78,6 +82,8 @@ export const Badge: React.FC<BadgeProps> = ({ variant = 'status', value, size = 
       case 'CRITICAL': return 'Crítico';
       case 'ALERT': return 'Alerta';
       case 'OK': return 'Nominal';
+      case 'ONLINE': return 'En Línea';
+      case 'CONNECTED': return 'Conectado';
       case 'OPEN': return 'Abierta';
       case 'ACKNOWLEDGED': return 'En Revisión';
       case 'RESOLVED': return 'Resuelta';
@@ -90,9 +96,9 @@ export const Badge: React.FC<BadgeProps> = ({ variant = 'status', value, size = 
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border font-mono tracking-tight transition-colors ${styles} ${sizeClasses} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border font-mono tracking-tight transition-colors ${styles} ${sizeClasses} ${className}`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
       {formatLabel(val)}
     </span>
   );
