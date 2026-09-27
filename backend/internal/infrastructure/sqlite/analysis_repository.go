@@ -62,3 +62,25 @@ func (r *AnalysisRepository) one(row *sql.Row) (*analysis.Run, error) {
 	}
 	return &run, nil
 }
+
+func (r *AnalysisRepository) Reset(ctx context.Context) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM anomalies`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM analysis_runs`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM meter_metrics`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE meters SET status = 'OK'`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

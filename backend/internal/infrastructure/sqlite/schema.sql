@@ -73,3 +73,16 @@ CREATE TABLE IF NOT EXISTS analysis_runs (
     error       TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_runs_started ON analysis_runs(started_at);
+
+CREATE TABLE IF NOT EXISTS technical_visits (
+    id            TEXT PRIMARY KEY,
+    meter_id      TEXT NOT NULL,
+    urgency       TEXT NOT NULL,
+    reason        TEXT NOT NULL,
+    contact_name  TEXT NOT NULL,
+    contact_phone TEXT NOT NULL,
+    notes         TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT 'CONFIRMED',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_visits_meter ON technical_visits(meter_id);

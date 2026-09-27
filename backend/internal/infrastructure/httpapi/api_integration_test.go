@@ -14,14 +14,29 @@ import (
 
 	appanalysis "energyhub/internal/app/analysis"
 	"energyhub/internal/app/anomalies"
+	appauth "energyhub/internal/app/auth"
+	appcopilot "energyhub/internal/app/copilot"
 	"energyhub/internal/app/dashboard"
 	"energyhub/internal/app/meters"
+	appvisits "energyhub/internal/app/visits"
 	"energyhub/internal/domain/detection"
 	"energyhub/internal/infrastructure/ai"
 	"energyhub/internal/infrastructure/httpapi"
 	"energyhub/internal/infrastructure/seed"
 	"energyhub/internal/infrastructure/sqlite"
 )
+
+const testIntegrationSecret = "test_jwt_secret_integration_2026"
+
+func getTestToken(t *testing.T) string {
+	t.Helper()
+	authSvc := appauth.NewService(testIntegrationSecret)
+	sess, err := authSvc.Authenticate("elena.morales", "Elena#Bia2026")
+	if err != nil {
+		t.Fatalf("failed to authenticate test user: %v", err)
+	}
+	return sess.Token
+}
 
 // Test end-to-end: SQLite real + CSV reales + API HTTP + pipeline completo (explainer determinista).
 func newTestServer(t *testing.T) *httptest.Server {
@@ -41,6 +56,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 
 	mr, rr, er := sqlite.NewMeterRepository(db), sqlite.NewReadingRepository(db), sqlite.NewEventRepository(db)
 	ar, runs := sqlite.NewAnomalyRepository(db), sqlite.NewAnalysisRepository(db)
+	vr := sqlite.NewVisitRepository(db)
 	cfg := detection.DefaultConfig()
 	n := 0
 	svc := appanalysis.NewService(appanalysis.Deps{
@@ -48,20 +64,34 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Explainer: ai.NewDeterministic(), Config: cfg, Logger: log,
 		NewID: func() string { n++; return "run_test_" + string(rune('0'+n)) },
 	})
+	copilotSvc := appcopilot.NewService(nil, ai.NewCopilotDeterministic(), 5*time.Second, log)
+	visitsSvc := appvisits.NewService(vr)
+	authSvc := appauth.NewService(testIntegrationSecret)
+
 	srv := httptest.NewServer(httpapi.NewRouter(httpapi.Handlers{
 		Meters:    httpapi.NewMeterHandler(meters.NewService(mr, rr, cfg)),
 		Anomalies: httpapi.NewAnomalyHandler(anomalies.NewService(ar, mr)),
 		Analysis:  httpapi.NewAnalysisHandler(svc),
 		Dashboard: httpapi.NewDashboardHandler(dashboard.NewService(mr, rr, ar, runs)),
-	}, "*"))
+		Copilot:   httpapi.NewCopilotHandler(copilotSvc, visitsSvc),
+		Auth:      httpapi.NewAuthHandler(authSvc),
+	}, "http://localhost:5173"))
 	t.Cleanup(srv.Close)
 	return srv
 }
 
 func do(t *testing.T, srv *httptest.Server, method, path, body string, out any) int {
 	t.Helper()
+	return doWithAuth(t, srv, getTestToken(t), method, path, body, out)
+}
+
+func doWithAuth(t *testing.T, srv *httptest.Server, token, method, path, body string, out any) int {
+	t.Helper()
 	req, _ := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -252,3 +282,204 @@ func TestAPI_Errors(t *testing.T) {
 		}
 	}
 }
+
+func TestAPI_CopilotAsk(t *testing.T) {
+	srv := newTestServer(t)
+	var ans struct {
+		Answer            string   `json:"answer"`
+		KeyTakeaways      []string `json:"key_takeaways"`
+		FollowUpQuestions []string `json:"follow_up_questions"`
+	}
+	body := `{"context_type":"meter","context_id":"M-109","question":"¿Por qué aumentó tanto el consumo?"}`
+	code := do(t, srv, http.MethodPost, "/api/v1/ai/ask", body, &ans)
+	if code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", code)
+	}
+	if len(ans.KeyTakeaways) == 0 || ans.Answer == "" {
+		t.Fatalf("expected valid copilot response, got %+v", ans)
+	}
+}
+
+func TestAPI_TechnicalVisits(t *testing.T) {
+	srv := newTestServer(t)
+	var visit struct {
+		ID      string `json:"id"`
+		MeterID string `json:"meter_id"`
+		Status  string `json:"status"`
+	}
+	reqBody := `{"meter_id":"M-109","urgency":"IMMEDIATE","reason":"Aumento inusual de consumo","contact_name":"Juan Perez","contact_phone":"+573001112233","notes":"Urgente"}`
+	code := do(t, srv, http.MethodPost, "/api/v1/technical-visits", reqBody, &visit)
+	if code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", code)
+	}
+	if visit.ID == "" || visit.MeterID != "M-109" || visit.Status != "CONFIRMED" {
+		t.Fatalf("expected confirmed visit, got %+v", visit)
+	}
+
+	var list struct {
+		Data  []map[string]any `json:"data"`
+		Total int              `json:"total"`
+	}
+	code = do(t, srv, http.MethodGet, "/api/v1/technical-visits", "", &list)
+	if code != http.StatusOK || list.Total != 1 {
+		t.Fatalf("expected 1 visit in list, got total=%d", list.Total)
+	}
+}
+
+func TestAPI_ResetAnalysis(t *testing.T) {
+	srv := newTestServer(t)
+	runAnalysis(t, srv)
+
+	var anoms struct {
+		Total int `json:"total"`
+	}
+	do(t, srv, http.MethodGet, "/api/v1/anomalies", "", &anoms)
+	if anoms.Total == 0 {
+		t.Fatalf("expected anomalies after run, got %d", anoms.Total)
+	}
+
+	var resetResp map[string]string
+	code := do(t, srv, http.MethodPost, "/api/v1/ai/reset", "", &resetResp)
+	if code != http.StatusOK {
+		t.Fatalf("expected 200 on reset, got %d", code)
+	}
+
+	do(t, srv, http.MethodGet, "/api/v1/anomalies", "", &anoms)
+	if anoms.Total != 0 {
+		t.Fatalf("expected 0 anomalies after reset, got %d", anoms.Total)
+	}
+}
+
+func TestAPI_Security_ProtectedRoutesReturn401(t *testing.T) {
+	srv := newTestServer(t)
+	protectedEndpoints := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/api/v1/dashboard/summary", ""},
+		{http.MethodGet, "/api/v1/meters", ""},
+		{http.MethodGet, "/api/v1/meters/M-109", ""},
+		{http.MethodGet, "/api/v1/meters/M-109/readings", ""},
+		{http.MethodGet, "/api/v1/anomalies", ""},
+		{http.MethodGet, "/api/v1/anomalies/anm_m109_20260912T1400", ""},
+		{http.MethodPatch, "/api/v1/anomalies/anm_m109_20260912T1400", `{"status":"RESOLVED"}`},
+		{http.MethodPost, "/api/v1/ai/analyze", ""},
+		{http.MethodGet, "/api/v1/ai/analysis/run_test_1", ""},
+		{http.MethodPost, "/api/v1/ai/reset", ""},
+		{http.MethodPost, "/api/v1/ai/ask", `{"context_type":"meter","context_id":"M-109","question":"test"}`},
+		{http.MethodPost, "/api/v1/technical-visits", `{"meter_id":"M-109"}`},
+		{http.MethodGet, "/api/v1/technical-visits", ""},
+		{http.MethodGet, "/api/v1/auth/me", ""},
+	}
+
+	for _, ep := range protectedEndpoints {
+		t.Run("SinToken_"+ep.method+"_"+ep.path, func(t *testing.T) {
+			code := doWithAuth(t, srv, "", ep.method, ep.path, ep.body, nil)
+			if code != http.StatusUnauthorized {
+				t.Errorf("%s %s sin token: got %d, want 401", ep.method, ep.path, code)
+			}
+		})
+
+		t.Run("TokenInvalido_"+ep.method+"_"+ep.path, func(t *testing.T) {
+			code := doWithAuth(t, srv, "token.invalido.malformado", ep.method, ep.path, ep.body, nil)
+			if code != http.StatusUnauthorized {
+				t.Errorf("%s %s con token inválido: got %d, want 401", ep.method, ep.path, code)
+			}
+		})
+	}
+}
+
+func TestAPI_Security_PublicRoutes(t *testing.T) {
+	srv := newTestServer(t)
+
+	// /health debe ser accesible sin autenticación
+	code := doWithAuth(t, srv, "", http.MethodGet, "/health", "", nil)
+	if code != http.StatusOK {
+		t.Errorf("/health sin token: got %d, want 200", code)
+	}
+
+	// /api/v1/auth/login debe ser accesible sin autenticación
+	loginBody := `{"username":"elena.morales","password":"Elena#Bia2026"}`
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	code = doWithAuth(t, srv, "", http.MethodPost, "/api/v1/auth/login", loginBody, &loginResp)
+	if code != http.StatusOK {
+		t.Errorf("/api/v1/auth/login sin token: got %d, want 200", code)
+	}
+	if loginResp.Token == "" {
+		t.Error("expected non-empty token from public login")
+	}
+}
+
+func TestAPI_Security_CORSOriginPolicy(t *testing.T) {
+	srv := newTestServer(t)
+
+	// 1. Origen permitido configurado ("http://localhost:5173")
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/health", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Errorf("origen permitido: got Access-Control-Allow-Origin %q, want %q", got, "http://localhost:5173")
+	}
+
+	// 2. Origen no autorizado ("http://malicious-attacker.com")
+	req, _ = http.NewRequest(http.MethodGet, srv.URL+"/health", nil)
+	req.Header.Set("Origin", "http://malicious-attacker.com")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("origen no autorizado NO debe recibir Access-Control-Allow-Origin, got %q", got)
+	}
+
+	// 3. Solicitud sin cabecera Origin
+	req, _ = http.NewRequest(http.MethodGet, srv.URL+"/health", nil)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("sin cabecera Origin NO debe recibir Access-Control-Allow-Origin, got %q", got)
+	}
+
+	// 4. Preflight OPTIONS con origen permitido
+	req, _ = http.NewRequest(http.MethodOptions, srv.URL+"/health", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("preflight permitido: got %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Errorf("preflight permitido: got %q, want %q", got, "http://localhost:5173")
+	}
+
+	// 5. Preflight OPTIONS con origen no autorizado -> 403 Forbidden
+	req, _ = http.NewRequest(http.MethodOptions, srv.URL+"/health", nil)
+	req.Header.Set("Origin", "http://malicious-attacker.com")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("preflight no autorizado: got %d, want 403", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("preflight no autorizado: NO debe tener Access-Control-Allow-Origin, got %q", got)
+	}
+}
+
+

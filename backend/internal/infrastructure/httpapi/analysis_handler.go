@@ -15,6 +15,7 @@ type analysisUseCases interface {
 	Start(ctx context.Context) (*analysis.Run, error)
 	Get(ctx context.Context, id string) (*analysis.Run, error)
 	Latest(ctx context.Context) (*analysis.Run, error)
+	Reset(ctx context.Context) error
 }
 
 type AnalysisHandler struct{ uc analysisUseCases }
@@ -51,6 +52,18 @@ func (h *AnalysisHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toRunDTO(*run))
+}
+
+// POST /api/v1/ai/reset
+func (h *AnalysisHandler) Reset(w http.ResponseWriter, r *http.Request) {
+	if err := h.uc.Reset(r.Context()); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"message": "Estado de análisis reseteado. Listo para ejecutar Run AI Analysis.",
+	})
 }
 
 type dashboardUseCases interface {

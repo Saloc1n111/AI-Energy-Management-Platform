@@ -15,8 +15,11 @@ import (
 
 	appanalysis "energyhub/internal/app/analysis"
 	"energyhub/internal/app/anomalies"
+	appauth "energyhub/internal/app/auth"
+	appcopilot "energyhub/internal/app/copilot"
 	"energyhub/internal/app/dashboard"
 	"energyhub/internal/app/meters"
+	appvisits "energyhub/internal/app/visits"
 	"energyhub/internal/config"
 	"energyhub/internal/domain/detection"
 	"energyhub/internal/infrastructure/ai"
@@ -36,6 +39,9 @@ func main() {
 
 func run(log *slog.Logger) error {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("configuration error: %w", err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -57,23 +63,33 @@ func run(log *slog.Logger) error {
 	eventRepo := sqlite.NewEventRepository(db)
 	anomalyRepo := sqlite.NewAnomalyRepository(db)
 	runRepo := sqlite.NewAnalysisRepository(db)
+	visitRepo := sqlite.NewVisitRepository(db)
 	detCfg := detection.DefaultConfig()
 
 	// IA: Gemini o Claude con respaldo determinista, o solo determinista si no hay API key.
 	var explainer appanalysis.Explainer = ai.NewDeterministic()
+	var copilotPrimary appcopilot.Explainer
+	copilotFallback := ai.NewCopilotDeterministic()
+
 	if cfg.GeminiAPIKey != "" {
 		gemini := ai.NewGemini(ai.GeminiConfig{APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, Retries: 1},
 			&http.Client{Timeout: cfg.AITimeout})
 		explainer = ai.NewFallback(gemini, explainer, cfg.AITimeout, log)
-		log.Info("AI explainer enabled with Google Gemini", "model", cfg.GeminiModel)
+		copilotPrimary = ai.NewCopilotGemini(ai.GeminiConfig{APIKey: cfg.GeminiAPIKey, Model: cfg.GeminiModel, Retries: 1},
+			&http.Client{Timeout: cfg.AITimeout})
+		log.Info("AI explainer and Copilot enabled with Google Gemini", "model", cfg.GeminiModel)
 	} else if cfg.AnthropicAPIKey != "" {
 		claude := ai.NewClaude(ai.ClaudeConfig{APIKey: cfg.AnthropicAPIKey, Model: cfg.AnthropicModel, Retries: 1},
 			&http.Client{Timeout: cfg.AITimeout})
 		explainer = ai.NewFallback(claude, explainer, cfg.AITimeout, log)
 		log.Info("AI explainer enabled with Claude", "model", cfg.AnthropicModel)
 	} else {
-		log.Warn("No AI API key set: using deterministic explainer")
+		log.Warn("No AI API key set: using deterministic explainer and copilot fallback")
 	}
+
+	copilotSvc := appcopilot.NewService(copilotPrimary, copilotFallback, cfg.AITimeout, log)
+	visitsSvc := appvisits.NewService(visitRepo)
+	authSvc := appauth.NewService(cfg.JWTSecret)
 
 	// Casos de uso
 	analysisSvc := appanalysis.NewService(appanalysis.Deps{
@@ -85,6 +101,8 @@ func run(log *slog.Logger) error {
 		Anomalies: httpapi.NewAnomalyHandler(anomalies.NewService(anomalyRepo, meterRepo)),
 		Analysis:  httpapi.NewAnalysisHandler(analysisSvc),
 		Dashboard: httpapi.NewDashboardHandler(dashboard.NewService(meterRepo, readingRepo, anomalyRepo, runRepo)),
+		Copilot:   httpapi.NewCopilotHandler(copilotSvc, visitsSvc),
+		Auth:      httpapi.NewAuthHandler(authSvc),
 	}
 
 	if cfg.AnalyzeOnStart {

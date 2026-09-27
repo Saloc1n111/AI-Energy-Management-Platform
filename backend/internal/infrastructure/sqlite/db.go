@@ -21,7 +21,8 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	db.SetMaxOpenConns(1) // SQLite: un escritor a la vez evita "database is locked"
+	db.SetMaxOpenConns(4) // WAL mode permite múltiples lectores concurrentes con busy_timeout(5000)
+	db.SetMaxIdleConns(4)
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}

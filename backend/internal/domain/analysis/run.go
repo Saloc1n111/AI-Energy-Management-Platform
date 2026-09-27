@@ -155,4 +155,5 @@ type Repository interface {
 	Save(ctx context.Context, r *Run) error
 	FindByID(ctx context.Context, id string) (*Run, error)
 	FindLatest(ctx context.Context) (*Run, error)
+	Reset(ctx context.Context) error
 }

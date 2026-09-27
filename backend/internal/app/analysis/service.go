@@ -103,6 +103,13 @@ func (s *Service) Latest(ctx context.Context) (*domain.Run, error) {
 	return s.d.Runs.FindLatest(ctx)
 }
 
+func (s *Service) Reset(ctx context.Context) error {
+	s.mu.Lock()
+	s.runningID = ""
+	s.mu.Unlock()
+	return s.d.Runs.Reset(ctx)
+}
+
 // Execute corre el pipeline de forma síncrona (lo usa Start y los tests).
 func (s *Service) Execute(ctx context.Context, run *domain.Run) error {
 	err := s.execute(ctx, run)
