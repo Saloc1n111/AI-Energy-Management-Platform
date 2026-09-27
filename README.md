@@ -141,23 +141,47 @@ docker compose up --build
 
 ---
 
+---
+
+## 🔐 Credenciales de Acceso a la Plataforma (3 Usuarios Oficiales)
+
+Para acceder a la plataforma web (`http://localhost:5173`), el sistema cuenta con **3 perfiles de usuario autorizados** con roles operativos específicos de **Bia Energy** y contraseñas independientes. Es posible ingresar indistintamente con el **usuario corto** o el **correo institucional**:
+
+| # | Nombre del Operador | Usuario | Correo Institucional | Contraseña | Rol en la Plataforma | Sede Asignada |
+|:---:|---|---|---|---|---|---|
+| **1** | **Ing. Elena Morales** *(Recomendado para demo)* | `elena.morales` | `elena.morales@bia.app` | `Elena#Bia2026` | Analista Senior de Energía | Planta Norte · Operaciones |
+| **2** | **Carlos Restrepo** | `carlos.restrepo` | `carlos.restrepo@bia.app` | `Carlos#Ops2026` | Director de Operaciones & Eficiencia | Gestión Corporativa |
+| **3** | **Andrés Gómez** | `andres.gomez` | `andres.gomez@bia.app` | `Andres#Field2026` | Ingeniero de Campo & Subestaciones | Mantenimiento Técnico |
+
+> [!TIP]
+> En la esquina superior derecha del `Navbar`, al hacer clic en el perfil del usuario se despliega la tarjeta de sesión activa con el botón de **"Cerrar Sesión"** para alternar de usuario de forma fluida.
+
+---
+
 ## 🎯 Guía de la Demo Operativa (5 a 10 Minutos)
 
-1. **Dashboard Ejecutivo**:
+1. **Inicio de Sesión (Login)**:
+   - Abre `http://localhost:5173`.
+   - Ingresa con el usuario `elena.morales` (o `elena.morales@bia.app`) y la contraseña `Elena#Bia2026`.
+   - Haz clic en **"Iniciar Sesión en Plataforma"**.
+   - Observa la verificación criptográfica instantánea contra el backend de Go y la personalización del perfil en el Navbar superior.
+2. **Dashboard Ejecutivo**:
    - Observa los KPIs agregados (12 medidores, consumo total, 4 anomalías detectadas, 2 de alta prioridad).
    - Examina el banner de estado del último análisis y la distribución por severidad.
-2. **Ejecutar Análisis IA**:
-   - Haz clic en **"Ejecutar Análisis IA"**.
+3. **Ejecutar Análisis IA**:
+   - Haz clic en **"Ejecutar Análisis IA"** (o "Ejecutar Diagnóstico").
    - Observa el avance animado en tiempo real de los 7 pasos del pipeline (`Lecturas` $\rightarrow$ `Baseline` $\rightarrow$ `Detección` $\rightarrow$ `Correlación` $\rightarrow$ `Eventos` $\rightarrow$ `Explicación con Gemini` $\rightarrow$ `Recomendación`).
-3. **Gestión de Medidores**:
+4. **Gestión de Medidores**:
    - Accede a la pestaña **Medidores**.
    - Filtra por **Críticas (1)** para localizar `M-109`.
    - Haz clic en `M-109` para abrir el detalle.
-4. **Detalle de Medidor y Series Temporales**:
+5. **Detalle de Medidor y Series Temporales**:
    - Inspecciona la gráfica interactiva de Chart.js: Consumo Real vs Línea Base esperada.
    - Activa las variables eléctricas secundarias: Voltaje (V), Corriente (A), Factor de Potencia (FP).
    - Observa el salto abrupto de corriente a 424A a partir del 12 de septiembre.
-5. **Investigación Profunda y Toma de Decisión**:
+6. **Investigación Profunda y Toma de Decisión**:
    - Pulsa **"Investigar Anomalía"**.
    - Analiza la explicación generada por **Gemini**, la tabla de evidencia cuantitativa y el desglose de confianza (93%).
    - Ejecuta la acción operativa: haz clic en **"Reconocer Anomalía"** (`ACKNOWLEDGED`) o **"Marcar como Resuelta"** (`RESOLVED`). Observa cómo el estado se persiste en vivo en el backend.
+7. **Cerrar Sesión / Alternar Usuario**:
+   - Haz clic en el perfil del Navbar y presiona **"Cerrar Sesión"**. Comprueba el retorno seguro al Login.

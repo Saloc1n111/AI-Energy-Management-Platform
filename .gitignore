@@ -24,3 +24,13 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Testing & Coverage
+backend/cover/
+coverage/
+
+# Logs
+*.log
+
+# Subagent state & artifacts
+.agents/
