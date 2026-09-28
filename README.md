@@ -19,45 +19,7 @@ flowchart LR
 
 ---
 
-## 🏆 Matriz de Evaluación vs. Especificación Oficial
 
-### 1. Evaluación Global (100 / 100 Puntos)
-
-| Competencia | Pts | Estado | Justificación e Implementación |
-|---|:---:|:---:|---|
-| **Frontend / UX** | **20** | **20 / 20** | Interfaz SaaS B2B inspirada en **Bia Energy** (`#08DDBC`, `#040714`), navegación fluida, filtros dinámicos, gráficos interactivos con **Chart.js** (series temporales multivariable y perfil horario de 24h), y modal en vivo del pipeline de 7 pasos. |
-| **Backend / API** | **20** | **20 / 20** | Go 1.23 con Clean Architecture / Hexagonal. Persistencia en SQLite sin CGO (`modernc.org/sqlite`), auto-migración, seeder idempotente y todos los endpoints REST requeridos implementados y testeados. |
-| **Data / Analytics** | **20** | **20 / 20** | Baseline horario por medidor con los primeros 7 días usando estadísticos robustos (**Mediana + MAD**), z-score robusto, detección de saltos y validación de calidad de datos. |
-| **Detección de anomalías** | **15** | **15 / 15** | Identificación de ventanas anómalas (desviación $\ge 25\%$, z-score $\ge 3.5$), correlación física multivariable ($P \approx V \cdot I \cdot FP$), y descarte matemático de falsos positivos frente a paradas programadas. |
-| **IA y explicabilidad** | **15** | **15 / 15** | Pipeline de 7 pasos: *Lecturas → Baseline → Detección → Correlación → Eventos → Explicación → Recomendación*. Generación de causa raíz, evidencia cuantitativa y pasos de investigación con Gemini 3.5 Flash Lite y respaldo determinista. |
-| **Testing / Calidad** | **10** | **10 / 10** | Cobertura integral en backend (`go test ./...` pasa al 100% en unitarios, integración y simulación de API) y frontend estricto con TypeScript (`npm run build` sin errores). |
-
----
-
-### 2. Evaluación Específica de IA (100 / 100 Puntos)
-
-| Criterio | Pts | Resultado Obtenido | Clasificación y Evidencia del Motor |
-|---|:---:|:---:|---|
-| **Detecta M-109** | **30** | ✅ **Detectado** | `REAL_ANOMALY` · Severidad `HIGH` · Desviación +110.5% en ventana sostenida de 58h (5.380 kWh vs 2.556 kWh esperados). |
-| **Prioriza M-109** | **25** | ✅ **Top 1** | Priority Score: **33.93** (el más alto del sistema). Supera inmediatamente a problemas de calidad y anomalías explicables. |
-| **Evita tratar M-106 como anomalía real** | **15** | ✅ **Descartado** | `FALSE_POSITIVE` · Severidad `LOW` · Caída del -79.8% explicada por mantenimiento programado (`SCHEDULED_OUTAGE`). Priority Score: **0.00** (no escala a la mesa de operaciones). |
-| **Detecta M-112 como problema de calidad** | **10** | ✅ **Calidad** | `DATA_QUALITY` · Severidad `HIGH` · Consumo normal (+0.5%), pero voltaje y FP presentan saltos erráticos durante 16h continuas. |
-| **Explica con evidencia** | **10** | ✅ **Completo** | Tabla de evidencia cuantitativa: consumo, corriente (salto a 424A), factor de potencia (caída a 0.74), y cruce con eventos (`UNKNOWN`). |
-| **Recomienda acción coherente** | **10** | ✅ **Accionable** | M-109: *"Inspeccionar el medidor M-109 y verificar el estado de la carga conectada para identificar el origen del consumo no justificado."* |
-
----
-
-## 📊 Los 4 Casos de Prueba del Dataset
-
-| Medidor | Caso Operativo | Tipo Clasificado | Severidad | Confianza | Priority Score | Acción Recomendada |
-|:---:|---|:---:|:---:|:---:|:---:|---|
-| **M-109** | Aumento >100% sin evento conocido y con alteración en corriente/FP | `REAL_ANOMALY` | `HIGH` | 93% | **33.93** | Inspeccionar medidor e instalación por consumo no justificado |
-| **M-112** | Consumo estable pero lecturas de voltaje y FP erráticas | `DATA_QUALITY` | `HIGH` | 95% | **32.95** | Verificar estado del medidor y cableado de voltaje/FP |
-| **M-104** | Aumento +47.5% coincidente con nueva línea productiva | `EXPLAINABLE_ANOMALY` | `MEDIUM` | 95% | **21.95** | Registrar formalmente el incremento para actualizar línea base |
-| **M-106** | Parada técnica de 12 horas por mantenimiento programado | `FALSE_POSITIVE` | `LOW` | 95% | **0.00** | No escalar la alerta; evento justificado |
-| *(8 restantes)* | Medidores operando en rango nominal | `OK` | — | — | — | Operación normal |
-
----
 
 ## 🏗️ Arquitectura del Sistema
 
@@ -158,30 +120,5 @@ Para acceder a la plataforma web (`http://localhost:5173`), el sistema cuenta co
 
 ---
 
-## 🎯 Guía de la Demo Operativa (5 a 10 Minutos)
 
-1. **Inicio de Sesión (Login)**:
-   - Abre `http://localhost:5173`.
-   - Ingresa con el usuario `elena.morales` (o `elena.morales@bia.app`) y la contraseña `Elena#Bia2026`.
-   - Haz clic en **"Iniciar Sesión en Plataforma"**.
-   - Observa la verificación criptográfica instantánea contra el backend de Go y la personalización del perfil en el Navbar superior.
-2. **Dashboard Ejecutivo**:
-   - Observa los KPIs agregados (12 medidores, consumo total, 4 anomalías detectadas, 2 de alta prioridad).
-   - Examina el banner de estado del último análisis y la distribución por severidad.
-3. **Ejecutar Análisis IA**:
-   - Haz clic en **"Ejecutar Análisis IA"** (o "Ejecutar Diagnóstico").
-   - Observa el avance animado en tiempo real de los 7 pasos del pipeline (`Lecturas` $\rightarrow$ `Baseline` $\rightarrow$ `Detección` $\rightarrow$ `Correlación` $\rightarrow$ `Eventos` $\rightarrow$ `Explicación con Gemini` $\rightarrow$ `Recomendación`).
-4. **Gestión de Medidores**:
-   - Accede a la pestaña **Medidores**.
-   - Filtra por **Críticas (1)** para localizar `M-109`.
-   - Haz clic en `M-109` para abrir el detalle.
-5. **Detalle de Medidor y Series Temporales**:
-   - Inspecciona la gráfica interactiva de Chart.js: Consumo Real vs Línea Base esperada.
-   - Activa las variables eléctricas secundarias: Voltaje (V), Corriente (A), Factor de Potencia (FP).
-   - Observa el salto abrupto de corriente a 424A a partir del 12 de septiembre.
-6. **Investigación Profunda y Toma de Decisión**:
-   - Pulsa **"Investigar Anomalía"**.
-   - Analiza la explicación generada por **Gemini**, la tabla de evidencia cuantitativa y el desglose de confianza (93%).
-   - Ejecuta la acción operativa: haz clic en **"Reconocer Anomalía"** (`ACKNOWLEDGED`) o **"Marcar como Resuelta"** (`RESOLVED`). Observa cómo el estado se persiste en vivo en el backend.
-7. **Cerrar Sesión / Alternar Usuario**:
    - Haz clic en el perfil del Navbar y presiona **"Cerrar Sesión"**. Comprueba el retorno seguro al Login.
