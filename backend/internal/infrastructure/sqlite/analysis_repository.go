@@ -82,5 +82,8 @@ func (r *AnalysisRepository) Reset(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE meters SET status = 'OK'`); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM technical_visits`); err != nil {
+		return err
+	}
 	return tx.Commit()
 }

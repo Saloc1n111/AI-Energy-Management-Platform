@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Zap, Sparkles, LogOut, ChevronDown, Building2, Menu, Sun, Moon, Play, Activity } from 'lucide-react';
+import { Zap, Sparkles, LogOut, ChevronDown, Building2, Menu, Sun, Moon, Play, Activity, RotateCcw } from 'lucide-react';
 import { User } from '../../types/auth';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -45,15 +45,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, []);
 
-  const displayName = currentUser?.name || 'Ing. Elena Morales';
-  const displayRole = currentUser?.role || 'Analista Senior de Energía';
-  const displayInitials = currentUser?.initials || 'EM';
-  const displayPlant = currentUser?.plant || 'Planta Norte · Operaciones';
-  const displayEmail = currentUser?.email || 'elena.morales@bia.app';
+  const displayName = currentUser?.name || 'Usuario';
+  const displayRole = currentUser?.role || 'Operador de Planta';
+  const displayInitials = currentUser?.initials || (currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : 'US');
+  const displayPlant = currentUser?.plant || 'Planta Norte';
+  const displayEmail = currentUser?.email || 'usuario@bia.app';
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/80 dark:bg-bia-navy-900/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/[0.06] px-4 sm:px-6 py-3 flex items-center justify-between transition-colors shadow-xs">
-      {/* Brand: Bia Energy with Hamburger Toggle */}
+      {/* Brand: Bia with Hamburger Toggle */}
       <div className="flex items-center gap-2 sm:gap-3">
         {onToggleSidebar && (
           <button
@@ -128,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Bia AI Copilot Global Button */}
+        {/* Asistente Bia IA Global Button */}
         {onOpenCopilot && (
           <button
             onClick={onOpenCopilot}
@@ -136,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               bg-bia-turquoise/10 hover:bg-bia-turquoise/20 text-teal-700 dark:text-bia-turquoise border border-bia-turquoise/30 hover:border-bia-turquoise/60 shadow-xs active:scale-95 cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-bia-turquoise animate-pulse" />
-            <span>Bia Copilot</span>
+            <span>Asistente Bia IA</span>
           </button>
         )}
 

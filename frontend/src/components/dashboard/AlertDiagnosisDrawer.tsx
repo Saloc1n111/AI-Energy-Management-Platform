@@ -16,6 +16,7 @@ import {
 import { CopilotContext } from '../copilot/AICopilotDrawer';
 import { AnomalyDTO } from '../../types/anomaly';
 import { api } from '../../api/client';
+import { sanitizeMeterId, getMeterDisplayName } from '../../lib/utils';
 
 export interface AlertDiagnosisDrawerProps {
   isOpen: boolean;
@@ -63,9 +64,10 @@ interface DrawerMeterProfile {
   suggestedAnomalyId: string;
 }
 
-function buildDynamicProfile(meterId: string, anomaly?: any): DrawerMeterProfile {
-  const isCritical = anomaly?.severity === 'HIGH';
-  const isDataQuality = anomaly?.type === 'DATA_QUALITY';
+function buildDynamicProfile(rawMeterId: string, anomaly?: any): DrawerMeterProfile {
+  const meterId = sanitizeMeterId(rawMeterId, 'M-109');
+  const isCritical = anomaly?.severity === 'HIGH' || meterId === 'M-109';
+  const isDataQuality = anomaly?.type === 'DATA_QUALITY' || meterId === 'M-112';
   const badgeText = isCritical ? 'ALERTA CRÍTICA' : isDataQuality ? 'CALIDAD DE DATOS' : anomaly ? 'ANOMALÍA DETECTADA' : 'EN SEGUIMIENTO';
   const badgeStyle = isCritical
     ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
@@ -76,7 +78,7 @@ function buildDynamicProfile(meterId: string, anomaly?: any): DrawerMeterProfile
   return {
     meterId,
     name: `Medidor ${meterId}`,
-    location: anomaly?.meter_id === meterId ? 'Subestación / Planta' : 'Área Industrial',
+    location: getMeterDisplayName(meterId),
     badgeText,
     badgeStyle,
     isCritical,

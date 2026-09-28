@@ -3,6 +3,7 @@ import { MeterDetailDTO } from '../types/meter';
 import { ReadingDTO } from '../types/reading';
 import { AnomalyDTO } from '../types/anomaly';
 import { api } from '../api/client';
+import { sanitizeMeterId, getMeterDisplayName } from '../lib/utils';
 import { TimeSeriesChart } from '../components/charts/TimeSeriesChart';
 import { TremorTracker, TrackerBlock } from '../components/tremor/TremorTracker';
 import { AskAIButton } from '../components/common/AskAIButton';
@@ -392,13 +393,16 @@ function getNominalDiagnostic(meterId: string, variationPct: number): MeterDiagn
 }
 
 export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
-  meterId,
+  meterId: rawMeterId,
   onBack,
   onInvestigateAnomaly,
   onAskAI,
   onRequestTechnicalVisit,
   onAnalysisComplete,
 }) => {
+  // Sanitize meterId so 'production-summary' is never used as an ID
+  const meterId = sanitizeMeterId(rawMeterId, 'M-109');
+
   const [meter, setMeter] = useState<MeterDetailDTO | null>(null);
   const [readings, setReadings] = useState<ReadingDTO[]>(() => generateTelemetryReadings(meterId));
   const [_loading, setLoading] = useState(true);
@@ -407,6 +411,11 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
   const [hasRunIA, setHasRunIA] = useState(false);
   const [isRunningIA, setIsRunningIA] = useState(false);
   const [pipelineStep, setPipelineStep] = useState(1);
+
+  // Sanitized display name for meter ensuring 'production-summary' never appears
+  const meterDisplayName = useMemo(() => {
+    return getMeterDisplayName(meterId, meter?.name);
+  }, [meter?.name, meterId]);
 
   // Synchronize persisted anomaly and telemetry when meterId changes
   useEffect(() => {
@@ -439,11 +448,9 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
           const activeAnomaly = anomaliesData.data.find((a) => a.status !== 'RESOLVED') || anomaliesData.data[0];
           setPersistedAnomaly(activeAnomaly);
           setHasRunIA(true);
-        } else if (meterData?.metrics?.analyzed_at) {
-          setPersistedAnomaly(null);
-          setHasRunIA(true);
         } else {
           setPersistedAnomaly(null);
+          setHasRunIA(false);
         }
       })
       .finally(() => {
@@ -465,7 +472,7 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
           setHasRunIA(true);
         } else {
           setPersistedAnomaly(null);
-          setHasRunIA(true);
+          setHasRunIA(false);
         }
       });
     };
@@ -505,14 +512,16 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
   // Meter status & severity matching the real backend data
   const meterStatus = meter?.status ?? 'OK';
   const meterSeverity = meter?.metrics?.top_severity ?? 'NONE';
-  const isCritical = meterStatus === 'CRITICAL' || meterSeverity === 'HIGH';
+  const hasActiveAnomaly = Boolean(persistedAnomaly && persistedAnomaly.status !== 'RESOLVED');
+  const isCritical = hasActiveAnomaly && (meterStatus === 'CRITICAL' || meterSeverity === 'HIGH' || persistedAnomaly?.severity === 'HIGH' || persistedAnomaly?.severity === 'CRITICAL');
 
   // Diagnostic definition for this specific meter: consumes persisted anomaly from API (live Gemini/IA explanation)
   const diagnostic = useMemo((): MeterDiagnostic => {
-    const fallback = meterAIDiagnostics[meterId] || getNominalDiagnostic(meterId, variation);
+    // Si la demo fue reseteada o no hay anomalía persistida en backend, mostrar diagnóstico nominal limpio
     if (!persistedAnomaly) {
-      return fallback;
+      return getNominalDiagnostic(meterId, 0);
     }
+    const fallback = meterAIDiagnostics[meterId] || getNominalDiagnostic(meterId, variation);
 
     const formatTypeLabel = (type: string) => {
       switch (type) {
@@ -900,7 +909,7 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
 
           {onAskAI && (
             <AskAIButton
-              label={`Copilot ${meterId}`}
+              label={`Asistente Bia IA · ${meterId}`}
               size="sm"
               onClick={() =>
                 onAskAI({
@@ -991,7 +1000,7 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
                   )}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-sans">
-                  {meter?.name || (meterId === 'M-109' ? 'Subestación Principal · Transformador 1' : `Punto de Telemetría ${meterId}`)} · Telemetría horaria continua de 14 días (336 horas)
+                  {meterDisplayName} · Telemetría horaria continua de 14 días (336 horas)
                 </p>
               </div>
             </div>
@@ -1102,35 +1111,9 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
         />
       </div>
 
-      {/* 5. Diagnóstico IA Ejecutivo Conciso (1. Anomalía → 2. Causa Física → 3. Acción) */}
-      <div ref={resultsRef} className="pt-1">
-        {!hasRunIA && !isRunningIA ? (
-          <div className="rounded-2xl bg-white border border-slate-200/80 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs dark:bg-white/[0.02] dark:border-white/[0.06] backdrop-blur-md animate-fadeIn transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-200 dark:bg-bia-turquoise/10 dark:text-bia-turquoise dark:border-bia-turquoise/20 shrink-0">
-                <Sparkles className="w-4.5 h-4.5 text-cyan-600 dark:text-bia-turquoise" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white font-mono uppercase tracking-wide flex items-center gap-2">
-                  <span>Diagnóstico Estructurado de IA</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-semibold dark:bg-white/[0.04] dark:text-slate-400 dark:border-white/[0.06]">
-                    Pendiente
-                  </span>
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-300 font-sans mt-0.5">
-                  Haz clic en <strong className="text-cyan-700 dark:text-bia-turquoise font-semibold">Run IA Analysis</strong> (arriba) para generar el diagnóstico conciso en 3 módulos: Anomalía, Causa Física y Acción.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleRunIAAnalysis}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white dark:bg-bia-turquoise dark:hover:bg-bia-turquoise-hover dark:text-bia-navy-950 text-xs font-bold transition-all active:scale-95 shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
-            >
-              <Play className="w-3.5 h-3.5 fill-current text-white dark:text-bia-navy-950" />
-              <span>Ejecutar IA</span>
-            </button>
-          </div>
-        ) : (
+      {/* 5. Diagnóstico IA Ejecutivo Conciso (1. Anomalía → 2. Causa Física → 3. Acción) - Solo visible tras ejecutar IA */}
+      {hasRunIA && persistedAnomaly && (
+        <div ref={resultsRef} className="pt-1">
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-slate-700 dark:text-slate-300 flex items-center gap-2">
@@ -1330,8 +1313,8 @@ export const MeterDetailView: React.FC<MeterDetailViewProps> = ({
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

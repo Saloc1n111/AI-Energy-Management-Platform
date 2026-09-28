@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	appcopilot "energyhub/internal/app/copilot"
 	appvisits "energyhub/internal/app/visits"
@@ -33,6 +34,19 @@ func (h *CopilotHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
 		writeBadRequest(w, "Cuerpo JSON inválido")
 		return
+	}
+
+	if dto.ContextData == nil {
+		dto.ContextData = make(map[string]interface{})
+	}
+
+	if u, ok := UserFromContext(r.Context()); ok {
+		if _, exists := dto.ContextData["user_name"]; !exists {
+			dto.ContextData["user_name"] = u.Name
+		}
+		if _, exists := dto.ContextData["user_first_name"]; !exists {
+			dto.ContextData["user_first_name"] = extractFirstName(u.Name)
+		}
 	}
 
 	q := copilot.Question{
@@ -75,4 +89,19 @@ func (h *CopilotHandler) ListVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, list(items))
+}
+
+func extractFirstName(fullName string) string {
+	trimmed := strings.TrimSpace(fullName)
+	for _, prefix := range []string{"ing. ", "dr. ", "dra. ", "lic. ", "sr. ", "sra. "} {
+		if strings.HasPrefix(strings.ToLower(trimmed), prefix) {
+			trimmed = strings.TrimSpace(trimmed[len(prefix):])
+			break
+		}
+	}
+	parts := strings.Split(trimmed, " ")
+	if len(parts) > 0 && parts[0] != "" {
+		return parts[0]
+	}
+	return "Elena"
 }

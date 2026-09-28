@@ -15,6 +15,7 @@ import { MetersView } from './views/MetersView';
 import { MeterDetailView } from './views/MeterDetailView';
 import { AnomaliesView } from './views/AnomaliesView';
 import { InvestigationView } from './views/InvestigationView';
+import { sanitizeMeterId } from './lib/utils';
 
 interface MeterDetailWrapperProps {
   onBack: () => void;
@@ -28,7 +29,22 @@ interface MeterDetailWrapperProps {
 
 function MeterDetailWrapper(props: MeterDetailWrapperProps) {
   const { meterId } = useParams<{ meterId: string }>();
-  return <MeterDetailView {...props} meterId={meterId || props.selectedMeterId || 'M-101'} />;
+  const navigate = useNavigate();
+  const isInvalid =
+    !meterId || meterId === 'production-summary' || meterId.toLowerCase().includes('production-summary');
+  const validId = isInvalid
+    ? props.selectedMeterId && props.selectedMeterId !== 'production-summary'
+      ? props.selectedMeterId
+      : 'M-109'
+    : meterId;
+
+  useEffect(() => {
+    if (isInvalid) {
+      navigate(`/meters/${validId}`, { replace: true });
+    }
+  }, [isInvalid, validId, navigate]);
+
+  return <MeterDetailView {...props} meterId={validId} />;
 }
 
 interface InvestigationWrapperProps {
@@ -90,9 +106,17 @@ export function App() {
     return 'dashboard';
   }, [location.pathname]);
 
-  // Keyboard shortcuts: Ctrl+B / Cmd+B to toggle sidebar, Escape to collapse unpinned
+  const handleResetRef = useRef<() => void>(() => {});
+
+  // Keyboard shortcuts:
+  // - Ctrl+B / Cmd+B: toggle sidebar
+  // - Alt+R: reset demo to clean state
+  // - Escape: collapse unpinned sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         handleToggleSidebar();
@@ -103,6 +127,9 @@ export function App() {
             localStorage.setItem('bia_sidebar_collapsed', 'true');
           } catch {}
         }
+      } else if (!isInput && e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        handleResetRef.current();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -187,15 +214,18 @@ export function App() {
       await api.resetAnalysis();
       await fetchSummary();
       window.dispatchEvent(new CustomEvent('bia:analysis-completed'));
+      navigate('/dashboard');
     } catch (err) {
       console.error('Error resetting analysis:', err);
     }
   };
+  handleResetRef.current = handleResetAnalysis;
 
   const handleNavigate = (view: ViewType, contextId?: string) => {
     if (view === 'meter-detail' && contextId) {
-      setSelectedMeterId(contextId);
-      navigate(`/meters/${contextId}`);
+      const cleanId = sanitizeMeterId(contextId, selectedMeterId || 'M-109');
+      setSelectedMeterId(cleanId);
+      navigate(`/meters/${cleanId}`);
     } else if (view === 'meters') {
       navigate('/meters');
     } else if (view === 'investigation' && contextId) {
@@ -375,6 +405,7 @@ export function App() {
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
         context={copilotContext}
+        currentUser={currentUser}
         onRequestTechnicalVisit={handleRequestTechnicalVisit}
         onNavigateToMeter={(meterId) => handleNavigate('meter-detail', meterId)}
       />

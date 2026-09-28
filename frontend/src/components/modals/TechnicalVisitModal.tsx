@@ -115,7 +115,7 @@ export const TechnicalVisitModal: React.FC<TechnicalVisitModalProps> = ({
                 Ticket #{confirmedVisit.id}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto leading-relaxed">
-                Hemos asignado tu solicitud para el medidor <strong className="text-slate-900 dark:text-white">{confirmedVisit.meter_id}</strong> a nuestro equipo de ingenieros especialistas en campo de Bia Energy.
+                Hemos asignado tu solicitud para el medidor <strong className="text-slate-900 dark:text-white">{confirmedVisit.meter_id}</strong> a nuestro equipo de ingenieros especialistas en campo de Bia.
               </p>
             </div>
 

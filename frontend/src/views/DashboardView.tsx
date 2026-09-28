@@ -3,6 +3,7 @@ import { DashboardDTO } from '../types/dashboard';
 import { MeterDTO } from '../types/meter';
 import { api } from '../api/client';
 import { CopilotContext } from '../components/copilot/AICopilotDrawer';
+import { getMeterDisplayName } from '../lib/utils';
 import {
   Gauge,
   Zap,
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Sparkles,
   TrendingUp,
+  RotateCcw,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -44,29 +46,67 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenDiagnosisDrawer,
 }) => {
   const [meters, setMeters] = useState<MeterDTO[]>([]);
+  const [metersLoading, setMetersLoading] = useState<boolean>(true);
+  const [metersError, setMetersError] = useState<boolean>(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<'severity' | 'consumption' | 'variation' | 'id'>('severity');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  const hasRunAnalysis = Boolean(summary?.last_analysis && (summary?.anomalies_detected ?? 0) > 0);
+
+  const counts = useMemo(() => {
+    const valid = meters.filter((m) => m.meter_id !== 'production-summary' && m.name !== 'production-summary');
+    if (!hasRunAnalysis) {
+      return {
+        all: valid.length,
+        nominal: valid.length,
+        alert: 0,
+        critical: 0,
+      };
+    }
+    return {
+      all: valid.length,
+      nominal: valid.filter((m) => m.status === 'OK' && m.meter_id !== 'M-109').length,
+      alert: valid.filter((m) => m.status === 'ALERT').length,
+      critical: valid.filter((m) => m.status === 'CRITICAL' || m.meter_id === 'M-109').length,
+    };
+  }, [meters, hasRunAnalysis]);
+
   const filteredMeters = useMemo(() => {
     return meters
+      .filter((m) => m.meter_id !== 'production-summary' && m.name !== 'production-summary')
       .filter((m) => {
-        if (statusFilter === 'NOMINAL') return m.status === 'OK';
-        if (statusFilter === 'ALERT') return m.status === 'ALERT';
-        if (statusFilter === 'CRITICAL') return m.status === 'CRITICAL';
+        const isCritical = hasRunAnalysis && (m.status === 'CRITICAL' || m.meter_id === 'M-109');
+        const isAlert = hasRunAnalysis && m.status === 'ALERT';
+        if (statusFilter === 'NOMINAL') return !isCritical && !isAlert;
+        if (statusFilter === 'ALERT') return isAlert;
+        if (statusFilter === 'CRITICAL') return isCritical;
         return true;
       })
       .filter((m) => {
         if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
-        return m.meter_id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q);
+        const q = searchQuery.toLowerCase().trim();
+        const friendlyName = getMeterDisplayName(m.meter_id, m.name).toLowerCase();
+        return (
+          m.meter_id.toLowerCase().includes(q) ||
+          m.name.toLowerCase().includes(q) ||
+          friendlyName.includes(q)
+        );
       })
       .sort((a, b) => {
         let comp = 0;
         if (sortField === 'severity') {
-          const score = (status: string) => (status === 'CRITICAL' ? 3 : status === 'ALERT' ? 2 : 1);
-          comp = score(b.status) - score(a.status);
+          const score = (m: MeterDTO) => {
+            if (!hasRunAnalysis) return 1;
+            if (m.status === 'CRITICAL' || m.meter_id === 'M-109' || m.metrics?.top_severity === 'HIGH' || m.metrics?.top_severity === 'CRITICAL') return 3;
+            if (m.status === 'ALERT' || m.metrics?.top_severity === 'MEDIUM' || m.meter_id === 'M-112') return 2;
+            return 1;
+          };
+          comp = score(b) - score(a);
+          if (comp === 0) {
+            comp = Math.abs(b.metrics?.variation_pct ?? 0) - Math.abs(a.metrics?.variation_pct ?? 0);
+          }
         } else if (sortField === 'consumption') {
           comp = (b.metrics?.current_kwh ?? 0) - (a.metrics?.current_kwh ?? 0);
         } else if (sortField === 'variation') {
@@ -76,18 +116,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
         return sortOrder === 'desc' ? comp : -comp;
       });
-  }, [meters, statusFilter, searchQuery, sortField, sortOrder]);
+  }, [meters, statusFilter, searchQuery, sortField, sortOrder, hasRunAnalysis]);
 
   useEffect(() => {
     let isMounted = true;
+    setMetersLoading(true);
+    setMetersError(false);
+
     api
       .getMeters()
       .then((res) => {
-        if (isMounted && res.data && res.data.length > 0) {
-          setMeters(res.data);
+        if (isMounted) {
+          if (res.data && res.data.length > 0) {
+            setMeters(res.data);
+          }
+          setMetersLoading(false);
         }
       })
-      .catch((err) => console.error('Error fetching meters on dashboard:', err));
+      .catch((err) => {
+        console.error('Error fetching meters on dashboard:', err);
+        if (isMounted) {
+          setMetersError(true);
+          setMetersLoading(false);
+        }
+      });
 
     const handleAnalysisCompleted = () => {
       api
@@ -95,7 +147,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         .then((res) => {
           if (res.data && res.data.length > 0) setMeters(res.data);
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     window.addEventListener('bia:analysis-completed', handleAnalysisCompleted);
@@ -125,7 +177,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               SUPERVISIÓN DE PLANTA
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
-              • 12 Medidores • Telemetría en Tiempo Real
+              • {summary?.total_meters ?? (meters.length > 0 ? meters.length : '—')} Medidores • {summary ? 'Telemetría en Tiempo Real' : 'Sin conexión'}
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -143,16 +195,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onAskAI({
                 type: 'general',
                 id: 'copilot-assistant',
-                title: 'Asistente Copilot Bia',
+                title: 'Asistente Bia IA',
               })
             }
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 dark:text-teal-400 dark:border-teal-700/60 transition-all shadow-xs cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-            <span>Consultar Asistente Copilot</span>
+            <span>Consultar Asistente Bia IA</span>
           </button>
         </div>
       </div>
+
+      {/* Backend offline warning banner */}
+      {!_loading && !summary && (
+        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+          <div className="flex-1">
+            <span className="font-semibold">Servicio backend desconectado:</span>{' '}
+            <span>No se pudo conectar con el servidor de telemetría (puerto 8080). Inicia el backend para recibir métricas y telemetría en tiempo real.</span>
+          </div>
+        </div>
+      )}
 
       {/* 2. 6 KPI Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4">
@@ -171,15 +234,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-              {summary?.total_meters || 12}
+              {summary?.total_meters != null
+                ? summary.total_meters
+                : (_loading ? '...' : (meters.length > 0 ? meters.length : '—'))}
             </span>
-            <span className="text-sm font-mono text-teal-600 dark:text-teal-400 ml-1.5 font-semibold">
-              / 12
-            </span>
+            {summary?.total_meters != null && (
+              <span className="text-sm font-mono text-teal-600 dark:text-teal-400 ml-1.5 font-semibold">
+                / {summary.total_meters}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-[#182136]">
             <span className="text-slate-500 dark:text-slate-400">Parque activo</span>
-            <span className="text-teal-600 dark:text-teal-400 font-medium">100% En línea</span>
+            <span className={summary ? 'text-teal-600 dark:text-teal-400 font-medium' : 'text-slate-400 dark:text-slate-500 font-medium'}>
+              {summary ? '100% En línea' : 'Desconectado'}
+            </span>
           </div>
         </div>
 
@@ -204,17 +273,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-              {summary?.total_consumption_kwh
+              {summary?.total_consumption_kwh != null
                 ? (summary.total_consumption_kwh / 1000).toFixed(1)
-                : '155.3'}
+                : (_loading ? '...' : '—')}
             </span>
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 ml-1.5">
-              MWh
-            </span>
+            {summary?.total_consumption_kwh != null && (
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 ml-1.5">
+                MWh
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-[#182136]">
             <span className="text-slate-500 dark:text-slate-400">Total periodo</span>
-            <span className="text-teal-600 dark:text-teal-400 font-medium">14 días (336h)</span>
+            <span className={summary ? 'text-teal-600 dark:text-teal-400 font-medium' : 'text-slate-400 dark:text-slate-500 font-medium'}>
+              {summary ? '14 días (336h)' : 'Sin datos'}
+            </span>
           </div>
         </div>
 
@@ -233,15 +306,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-              {summary?.anomalies_detected ?? 4}
+              {summary?.anomalies_detected != null
+                ? summary.anomalies_detected
+                : (_loading ? '...' : '—')}
             </span>
             <span className="text-xs font-semibold text-amber-600 dark:text-amber-400/90 ml-1.5">
-              Detectadas
+              {summary ? 'Detectadas' : 'Sin datos'}
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-[#182136]">
             <span className="text-slate-500 dark:text-slate-400">Motor IA</span>
-            <span className="text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium group-hover:underline">Ver todas →</span>
+            <span className="text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium group-hover:underline">
+              {summary ? 'Ver todas →' : 'Desconectado'}
+            </span>
           </div>
         </div>
 
@@ -260,15 +337,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-2xl font-bold font-mono text-rose-600 dark:text-rose-500">
-              {summary?.high_priority ?? 2}
+              {summary?.high_priority != null
+                ? summary.high_priority
+                : (_loading ? '...' : '—')}
             </span>
             <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 ml-1.5">
-              Críticas
+              {summary ? 'Críticas' : 'Sin datos'}
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-[#182136]">
             <span className="text-slate-500 dark:text-slate-400">Atención urgente</span>
-            <span className="text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium group-hover:underline">M-109 / M-112 →</span>
+            <span className="text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium group-hover:underline">
+              {summary && summary.high_priority > 0 ? 'M-109 / M-112 →' : (summary ? '0 Alertas' : '—')}
+            </span>
           </div>
         </div>
 
@@ -285,7 +366,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-mono font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">
-              Confianza IA
+              Confianza Del Analisis
             </span>
             <div className="w-7 h-7 rounded-full bg-teal-50 border border-teal-200 text-teal-600 dark:bg-teal-950/60 dark:border-teal-800/60 dark:text-teal-400 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Sparkles className="w-3.5 h-3.5" />
@@ -293,15 +374,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">
-              {summary?.avg_confidence ? (summary.avg_confidence * 100).toFixed(1) : '95.0'}%
+              {summary?.avg_confidence != null
+                ? `${(summary.avg_confidence * 100).toFixed(1)}%`
+                : (_loading ? '...' : '—')}
             </span>
             <span className="text-xs font-semibold text-teal-600 dark:text-teal-400 ml-1.5">
-              Promedio
+              {summary ? 'Promedio' : 'Sin datos'}
             </span>
           </div>
           <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-[#182136]">
             <span className="text-slate-500 dark:text-slate-400">Métrica agregada</span>
-            <span className="text-teal-600 dark:text-teal-400 font-medium">Alta precisión</span>
+            <span className={summary ? 'text-teal-600 dark:text-teal-400 font-medium' : 'text-slate-400 dark:text-slate-500 font-medium'}>
+              {summary ? 'Alta precisión' : 'Sin conexión'}
+            </span>
           </div>
         </div>
 
@@ -320,7 +405,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex items-baseline mb-3">
             <span className="text-xl font-bold text-teal-600 dark:text-teal-400">
-              {lastRun?.status === 'COMPLETED' || !lastRun ? 'Completado' : lastRun.status}
+              {lastRun?.status === 'COMPLETED'
+                ? 'Completado'
+                : (lastRun?.status || (_loading ? '...' : (summary ? 'Pendiente' : 'Desconectado')))}
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 font-mono pt-2 border-t border-slate-100 dark:border-[#182136]">
@@ -328,12 +415,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>
               {lastRun?.finished_at
                 ? new Date(lastRun.finished_at).toLocaleString('es-ES', {
-                    day: '2-digit',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : '26-Sep 11:43'}
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+                : (summary ? 'Sin ejecuciones' : '—')}
             </span>
           </div>
         </div>
@@ -350,23 +437,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Parque de Medidores Inteligentes
               </h2>
               <span className="text-xs font-mono text-slate-600 bg-slate-100 border border-slate-200/80 dark:text-slate-400 dark:bg-[#161d31] dark:border-[#222c47] px-2.5 py-0.5 rounded-md">
-                12 Unidades
+                {meters.length > 0 ? `${meters.length} Unidades` : (metersLoading ? 'Cargando...' : '0 Unidades')}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Selecciona <strong className="text-slate-700 dark:text-slate-300 font-medium">Ver</strong> en cualquier medidor para entrar a ver sus gráficas de telemetría y ejecutar el análisis de IA.
+              Selecciona <strong className="text-slate-700 dark:text-slate-300 font-medium">Ver Detalle</strong> en cualquier medidor para entrar a ver sus gráficas de telemetría y diagnósticos de IA.
             </p>
-          </div>
-
-          <div className="flex items-center shrink-0">
-            <button
-              type="button"
-              onClick={() => handleOpenDiagnosis('M-109')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-400 dark:border-rose-800/50 transition-colors cursor-pointer shadow-xs"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              <span>Ver M-109 (+110.7% Crítico) →</span>
-            </button>
           </div>
         </div>
 
@@ -377,46 +453,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={() => setStatusFilter('ALL')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                statusFilter === 'ALL'
-                  ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
-              }`}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${statusFilter === 'ALL'
+                ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
+                }`}
             >
-              Todos los Medidores
+              <span>Todos los Medidores</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === 'ALL' ? 'bg-white/20 text-white dark:bg-slate-900/30 dark:text-slate-950' : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-400'}`}>
+                {counts.all}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter('NOMINAL')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                statusFilter === 'NOMINAL'
-                  ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
-              }`}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${statusFilter === 'NOMINAL'
+                ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
+                }`}
             >
-              Nominales
+              <span>Nominales</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === 'NOMINAL' ? 'bg-white/20 text-white dark:bg-slate-900/30 dark:text-slate-950' : 'bg-slate-200/80 text-slate-600 dark:bg-white/10 dark:text-slate-400'}`}>
+                {counts.nominal}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter('ALERT')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                statusFilter === 'ALERT'
-                  ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
-              }`}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${statusFilter === 'ALERT'
+                ? 'bg-amber-600 text-white shadow-xs dark:bg-amber-500 dark:text-slate-950'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
+                }`}
             >
-              En Alerta
+              <span>En Alerta</span>
+              {counts.alert > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === 'ALERT' ? 'bg-white/20 text-white dark:bg-slate-900/30 dark:text-slate-950' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-400'}`}>
+                  {counts.alert}
+                </span>
+              )}
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter('CRITICAL')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                statusFilter === 'CRITICAL'
-                  ? 'bg-teal-600 text-white shadow-xs dark:bg-teal-400 dark:text-slate-950'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
-              }`}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${statusFilter === 'CRITICAL'
+                ? 'bg-rose-600 text-white shadow-xs dark:bg-rose-500 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
+                }`}
             >
-              Críticos
+              <span>Críticos</span>
+              {counts.critical > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${statusFilter === 'CRITICAL' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-400'}`}>
+                  {counts.critical}
+                </span>
+              )}
             </button>
           </div>
 
@@ -430,8 +518,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar medidor (ej. M-109)"
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-teal-500 dark:bg-[#0e1424] dark:border-[#1f2942] dark:text-slate-200 dark:placeholder-slate-500 dark:focus:border-teal-400/50 text-xs w-56 sm:w-60 transition-colors"
+                className="pl-8 pr-7 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-teal-500 dark:bg-[#0e1424] dark:border-[#1f2942] dark:text-slate-200 dark:placeholder-slate-500 dark:focus:border-teal-400/50 text-xs w-56 sm:w-60 transition-colors"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs p-0.5 rounded cursor-pointer"
+                  title="Limpiar búsqueda"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* Sort Field Selector */}
@@ -469,7 +567,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <th className="py-3 px-4">Medidor</th>
                 <th className="py-3 px-4">Consumo (24h)</th>
                 <th className="py-3 px-4">Baseline Diario</th>
-                <th className="py-3 px-4 min-w-[180px]">Proporción vs Esperado</th>
                 <th className="py-3 px-4">Variación %</th>
                 <th className="py-3 px-4">Estado</th>
                 <th className="py-3 px-4">Severidad</th>
@@ -477,20 +574,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-[#182136] text-xs">
-              {filteredMeters.length === 0 ? (
+              {metersLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500 font-mono text-xs">
-                    No se encontraron medidores con los filtros seleccionados.
+                  <td colSpan={7} className="py-12 text-center text-slate-500 font-mono text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Cargando parque de medidores...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : metersError || (!summary && meters.length === 0) ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-500 font-mono text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <AlertTriangle className="w-6 h-6 text-amber-500" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        No se pudo conectar con el servidor backend
+                      </span>
+                      <span className="text-[11px] text-slate-500 max-w-md">
+                        Verifica que el servicio backend esté en ejecución en el puerto 8080 para cargar los medidores y la telemetría en tiempo real.
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredMeters.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-500 font-mono text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span>No se encontraron medidores con los filtros seleccionados.</span>
+                      {(statusFilter !== 'ALL' || searchQuery.trim()) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStatusFilter('ALL');
+                            setSearchQuery('');
+                          }}
+                          className="mt-1 px-3 py-1 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 dark:text-teal-400 dark:border-teal-700/60 text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          Limpiar filtros
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filteredMeters.map((m) => {
-                  const isCritical = m.status === 'CRITICAL' || m.meter_id === 'M-109';
-                  const isAlert = m.status === 'ALERT';
+                  const isCritical = hasRunAnalysis && (m.status === 'CRITICAL' || m.meter_id === 'M-109');
+                  const isAlert = hasRunAnalysis && m.status === 'ALERT';
                   const currentKwh = m.metrics?.current_kwh ?? 0;
                   const baselineKwh = m.metrics?.baseline_kwh ?? 1;
-                  const ratioPercent = Math.min(250, Math.round((currentKwh / (baselineKwh || 1)) * 100));
-                  const variation = m.metrics?.variation_pct ?? 0;
+                  const variation = hasRunAnalysis ? (m.metrics?.variation_pct ?? 0) : 0;
 
                   // Severity determination
                   let severityLabel = '—';
@@ -520,11 +653,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                              isCritical
-                                ? 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:border-rose-800/60'
-                                : 'bg-teal-50 text-teal-600 border border-teal-200 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800/60'
-                            }`}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isCritical
+                              ? 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:border-rose-800/60'
+                              : 'bg-teal-50 text-teal-600 border border-teal-200 dark:bg-teal-950/60 dark:text-teal-400 dark:border-teal-800/60'
+                              }`}
                           >
                             <Zap className="w-3.5 h-3.5" />
                           </div>
@@ -540,7 +672,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               )}
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
-                              Medidor {m.meter_id}
+                              {getMeterDisplayName(m.meter_id, m.name)}
                             </p>
                           </div>
                         </div>
@@ -568,38 +700,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="text-slate-400 dark:text-slate-500 text-[11px]">kWh</span>
                       </td>
 
-                      {/* Proporción vs Esperado with Progress Bar */}
-                      <td className="py-3.5 px-4">
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[10px] font-mono">
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{ratioPercent}%</span>
-                            <span className="text-slate-400 dark:text-slate-500">Ref: 100%</span>
-                          </div>
-                          <div className="w-full bg-slate-200/80 dark:bg-[#182136] rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                isCritical
-                                  ? 'bg-rose-500'
-                                  : isAlert
-                                  ? 'bg-amber-400'
-                                  : 'bg-teal-500 dark:bg-teal-400'
-                              }`}
-                              style={{ width: `${Math.min(100, (ratioPercent / 200) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
                       {/* Variación % Pill */}
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono text-xs font-semibold ${
-                            isCritical
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-800/50'
-                              : isAlert || variation > 10
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono text-xs font-semibold ${isCritical
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-800/50'
+                            : isAlert || variation > 10
                               ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800/50'
                               : 'bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-950/50 dark:text-teal-400 dark:border-teal-800/50'
-                          }`}
+                            }`}
                         >
                           <TrendingUp className="w-3 h-3" />
                           <span>
@@ -649,10 +758,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             e.stopPropagation();
                             onNavigateToMeter(m.meter_id);
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 hover:text-slate-900 border border-slate-200/80 dark:bg-[#161d31] dark:hover:bg-[#1e2742] dark:text-slate-200 dark:hover:text-white dark:border-[#263252] text-xs font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          className="px-3 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white dark:bg-bia-turquoise dark:hover:bg-bia-turquoise-hover dark:text-bia-navy-950 text-xs font-semibold inline-flex items-center gap-1 transition-all shadow-xs cursor-pointer"
                         >
-                          <span>Ver</span>
-                          <span className="text-slate-400">→</span>
+                          Ver Detalle
                         </button>
                       </td>
                     </tr>

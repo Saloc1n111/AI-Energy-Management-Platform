@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MeterDTO } from '../types/meter';
 import { api } from '../api/client';
+import { getMeterDisplayName } from '../lib/utils';
 import { Badge } from '../components/common/Badge';
 import { TremorDeltaBadge } from '../components/tremor/TremorDeltaBadge';
 import {
@@ -32,7 +33,9 @@ export const MetersView: React.FC<MetersViewProps> = ({ onSelectMeter }) => {
         sort: sortField,
         order: sortOrder,
       });
-      setMeters(resp.data);
+      setMeters(
+        resp.data.filter((m) => m.meter_id !== 'production-summary' && m.name !== 'production-summary')
+      );
     } catch (err) {
       console.error('Error fetching meters:', err);
     } finally {
@@ -83,15 +86,6 @@ export const MetersView: React.FC<MetersViewProps> = ({ onSelectMeter }) => {
             Supervisión continua de 12 puntos de medición en tiempo real. Consumo actual frente al perfil baseline horario calibrado.
           </p>
         </div>
-
-        {/* Quick focus for M-109 */}
-        <button
-          onClick={() => onSelectMeter('M-109')}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-bia-coral/[0.1] dark:hover:bg-bia-coral/[0.2] dark:text-bia-coral dark:border-bia-coral/25 text-xs font-mono font-medium transition-all shadow-xs"
-        >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>M-109 (+110.7% Crítico)</span>
-        </button>
       </div>
 
       {/* Filters and Controls */}
@@ -221,7 +215,9 @@ export const MetersView: React.FC<MetersViewProps> = ({ onSelectMeter }) => {
                                 </span>
                               )}
                             </span>
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-sans">{m.name}</span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-sans">
+                              {getMeterDisplayName(m.meter_id, m.name)}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -272,9 +268,9 @@ export const MetersView: React.FC<MetersViewProps> = ({ onSelectMeter }) => {
                             e.stopPropagation();
                             onSelectMeter(m.meter_id);
                           }}
-                          className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-zinc-900 hover:text-white text-slate-700 border border-slate-200/80 dark:bg-white/[0.03] dark:hover:bg-bia-turquoise dark:hover:text-bia-navy-950 dark:text-slate-300 dark:border-white/[0.06] text-xs font-medium transition-all shadow-xs"
+                          className="px-3 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white dark:bg-bia-turquoise dark:hover:bg-bia-turquoise-hover dark:text-bia-navy-950 text-xs font-semibold transition-all shadow-xs cursor-pointer"
                         >
-                          Ver
+                          Ver Detalle
                         </button>
                       </td>
                     </tr>

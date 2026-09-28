@@ -8,9 +8,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Filter,
-  CheckCircle2,
-  RotateCcw,
-  Wrench,
   Sparkles,
   Play,
 } from 'lucide-react';
@@ -28,7 +25,7 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({
   onSelectMeter,
   onRunAnalysis,
   onAskAI,
-  onRequestTechnicalVisit,
+  onRequestTechnicalVisit: _onRequestTechnicalVisit,
 }) => {
   const [anomalies, setAnomalies] = useState<AnomalyDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,20 +52,6 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({
   useEffect(() => {
     fetchAnomalies();
   }, [severityFilter, typeFilter, statusFilter]);
-
-  const handleStatusChange = async (
-    e: React.MouseEvent,
-    id: string,
-    newStatus: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
-  ) => {
-    e.stopPropagation();
-    try {
-      await api.updateAnomalyStatus(id, newStatus);
-      fetchAnomalies();
-    } catch (err) {
-      console.error('Error updating status:', err);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -273,54 +256,16 @@ export const AnomaliesView: React.FC<AnomaliesViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Right Column: Actions */}
+                  {/* Right Column: Action */}
                   <div className="shrink-0 flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-white/[0.05]">
-                    {a.meter_id === 'M-109' && onRequestTechnicalVisit && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRequestTechnicalVisit('M-109');
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-bia-coral/15 dark:hover:bg-bia-coral/30 dark:text-bia-coral dark:border-bia-coral/40 text-xs font-bold transition-all flex items-center gap-1 active:scale-95 shadow-xs"
-                      >
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span>Solicitar Visita</span>
-                      </button>
-                    )}
-
-                    {/* Status Toggle Quick Buttons */}
-                    {a.status === 'OPEN' && (
-                      <button
-                        onClick={(e) => handleStatusChange(e, a.id, 'ACKNOWLEDGED')}
-                        className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 dark:bg-bia-amber/[0.08] dark:hover:bg-bia-amber/[0.15] dark:text-bia-amber dark:border-bia-amber/25 text-xs font-medium transition-all shadow-xs"
-                      >
-                        Reconocer
-                      </button>
-                    )}
-
-                    {a.status !== 'RESOLVED' ? (
-                      <button
-                        onClick={(e) => handleStatusChange(e, a.id, 'RESOLVED')}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-bia-turquoise/[0.08] dark:hover:bg-bia-turquoise/[0.15] dark:text-bia-turquoise dark:border-bia-turquoise/25 text-xs font-medium transition-all flex items-center gap-1 shadow-xs"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Resolver</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => handleStatusChange(e, a.id, 'OPEN')}
-                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 dark:bg-white/[0.03] dark:hover:bg-white/[0.06] dark:text-slate-400 dark:border-white/[0.06] text-xs font-medium transition-all flex items-center gap-1 shadow-xs"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Reabrir</span>
-                      </button>
-                    )}
-
-                    {/* Investigate Full Button */}
+                    {/* Investigate / Audit Button */}
                     <button
-                      onClick={() => onInvestigate(a.id)}
-                      className="px-4 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white dark:bg-bia-turquoise dark:hover:bg-bia-turquoise-hover dark:text-bia-navy-950 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onInvestigate(a.id);
+                      }}
+                      className="px-4 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white dark:bg-bia-turquoise dark:hover:bg-bia-turquoise-hover dark:text-bia-navy-950 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
                     >
                       <span>Auditar</span>
                       <ArrowRight className="w-3 h-3" />

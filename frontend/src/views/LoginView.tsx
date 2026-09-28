@@ -6,12 +6,9 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldCheck,
   AlertCircle,
-  KeyRound,
-  ChevronDown,
-  ChevronUp,
   Loader2,
+  Check,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { User } from '../types/auth';
@@ -20,20 +17,32 @@ interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
 }
 
+const REMEMBER_ME_KEY = 'bia_remember_me';
+const REMEMBERED_USER_KEY = 'bia_remembered_identifier';
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
-  const [identifier, setIdentifier] = useState('elena.morales');
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [identifier, setIdentifier] = useState<string>(() => {
+    try {
+      const isRemembered = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+      if (isRemembered) {
+        return localStorage.getItem(REMEMBERED_USER_KEY) || 'elena.morales';
+      }
+    } catch {}
+    return 'elena.morales';
+  });
+
   const [password, setPassword] = useState('Elena#Bia2026');
-  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [showCredentialsHelper, setShowCredentialsHelper] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const handleSelectDemoUser = (user: string, pass: string) => {
-    setIdentifier(user);
-    setPassword(pass);
-    setErrorMsg(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +60,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         password: password.trim(),
         rememberMe,
       });
+
+      // Persistir o limpiar usuario recordado según la selección
+      try {
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_ME_KEY, 'true');
+          localStorage.setItem(REMEMBERED_USER_KEY, identifier.trim());
+        } else {
+          localStorage.removeItem(REMEMBER_ME_KEY);
+          localStorage.removeItem(REMEMBERED_USER_KEY);
+        }
+      } catch {}
+
       onLoginSuccess(response.user);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al autenticar. Verifique sus credenciales.');
@@ -74,12 +95,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <Zap className="w-6 h-6 fill-current" />
           </div>
           <div>
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-sans lowercase">
-                bia<span className="text-cyan-600 dark:text-bia-turquoise">.</span>
-              </span>
-              <span className="text-[10px] font-mono font-medium text-cyan-700 dark:text-bia-turquoise uppercase px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-bia-turquoise/[0.08] border border-cyan-200 dark:border-bia-turquoise/20">
-                ENERGY
+            <div className="flex items-center justify-center">
+              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-sans">
+                Bia<span className="text-cyan-600 dark:text-bia-turquoise">.</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-300 mt-1 font-normal">
@@ -149,21 +167,33 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </div>
 
           {/* Remember me option */}
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-3.5 h-3.5 rounded-sm bg-slate-100 dark:bg-bia-navy-950 border-slate-300 dark:border-white/[0.2] text-zinc-900 dark:text-bia-turquoise focus:ring-slate-400 dark:focus:ring-bia-turquoise/40"
-              />
-              <span className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300 transition-colors">
+          <div className="flex items-center pt-0.5">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={rememberMe}
+              onClick={() => setRememberMe((prev) => !prev)}
+              className="group inline-flex items-center gap-2.5 cursor-pointer select-none text-left bg-transparent border-0 p-0 focus:outline-hidden"
+            >
+              <div
+                className={`w-4 h-4 rounded-md flex items-center justify-center transition-all duration-200 border ${
+                  rememberMe
+                    ? 'bg-bia-turquoise border-bia-turquoise text-bia-navy-950 shadow-xs shadow-bia-turquoise/30 scale-105'
+                    : 'bg-slate-100 border-slate-300 dark:bg-bia-navy-950 dark:border-white/[0.18] group-hover:border-slate-400 dark:group-hover:border-bia-turquoise/60'
+                }`}
+              >
+                <Check
+                  className={`w-3 h-3 stroke-[3] transition-all duration-150 ${
+                    rememberMe
+                      ? 'opacity-100 scale-100 text-bia-navy-950'
+                      : 'opacity-0 scale-50'
+                  }`}
+                />
+              </div>
+              <span className="text-xs text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">
                 Recordar sesión
               </span>
-            </label>
-            <span className="text-[11px] text-slate-500 font-mono">
-              Acceso Seguro TLS 1.3
-            </span>
+            </button>
           </div>
 
           {/* Submit Button */}
@@ -185,80 +215,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             )}
           </button>
         </form>
-
-        {/* Collapsible Helper: Authorized Accounts for Evaluator */}
-        <div className="pt-2 border-t border-slate-100 dark:border-white/[0.06]">
-          <button
-            type="button"
-            onClick={() => setShowCredentialsHelper(!showCredentialsHelper)}
-            className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-bia-turquoise hover:bg-slate-50 dark:hover:bg-white/[0.02] text-[11px] transition-colors font-mono cursor-pointer"
-          >
-            <span className="flex items-center gap-1.5">
-              <KeyRound className="w-3.5 h-3.5 text-teal-600 dark:text-bia-turquoise" />
-              <span>Ver usuarios autorizados del sistema</span>
-            </span>
-            {showCredentialsHelper ? (
-              <ChevronUp className="w-3.5 h-3.5" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          {showCredentialsHelper && (
-            <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80 dark:bg-white/[0.02] dark:border-white/[0.06] space-y-2 text-[11px] font-mono animate-fadeIn">
-              <p className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider font-semibold border-b border-slate-200/60 dark:border-white/[0.04] pb-1">
-                Credenciales configuradas (Clic para autocompletar):
-              </p>
-              
-              <div className="space-y-2 text-slate-700 dark:text-slate-300">
-                <button
-                  type="button"
-                  onClick={() => handleSelectDemoUser('elena.morales', 'Elena#Bia2026')}
-                  className="w-full text-left p-2 rounded-lg bg-white hover:bg-teal-50/50 dark:bg-white/[0.02] dark:hover:bg-bia-turquoise/10 border border-slate-200/60 dark:border-transparent hover:border-bia-turquoise/40 transition-colors cursor-pointer block"
-                >
-                  <div className="font-semibold text-teal-700 dark:text-bia-turquoise flex items-center justify-between">
-                    <span>1. Ing. Elena Morales (Analista Senior)</span>
-                    <span className="text-[9px] font-normal uppercase text-teal-600 dark:text-bia-turquoise">Usar →</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Usuario: <code className="text-slate-800 dark:text-slate-200">elena.morales</code></div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Clave: <code className="text-slate-800 dark:text-slate-200">Elena#Bia2026</code></div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectDemoUser('carlos.restrepo', 'Carlos#Ops2026')}
-                  className="w-full text-left p-2 rounded-lg bg-white hover:bg-teal-50/50 dark:bg-white/[0.02] dark:hover:bg-bia-turquoise/10 border border-slate-200/60 dark:border-transparent hover:border-bia-turquoise/40 transition-colors cursor-pointer block"
-                >
-                  <div className="font-semibold text-teal-700 dark:text-bia-turquoise flex items-center justify-between">
-                    <span>2. Carlos Restrepo (Director Operaciones)</span>
-                    <span className="text-[9px] font-normal uppercase text-teal-600 dark:text-bia-turquoise">Usar →</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Usuario: <code className="text-slate-800 dark:text-slate-200">carlos.restrepo</code></div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Clave: <code className="text-slate-800 dark:text-slate-200">Carlos#Ops2026</code></div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectDemoUser('andres.gomez', 'Andres#Field2026')}
-                  className="w-full text-left p-2 rounded-lg bg-white hover:bg-teal-50/50 dark:bg-white/[0.02] dark:hover:bg-bia-turquoise/10 border border-slate-200/60 dark:border-transparent hover:border-bia-turquoise/40 transition-colors cursor-pointer block"
-                >
-                  <div className="font-semibold text-teal-700 dark:text-bia-turquoise flex items-center justify-between">
-                    <span>3. Andrés Gómez (Ingeniero de Campo)</span>
-                    <span className="text-[9px] font-normal uppercase text-teal-600 dark:text-bia-turquoise">Usar →</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Usuario: <code className="text-slate-800 dark:text-slate-200">andres.gomez</code></div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Clave: <code className="text-slate-800 dark:text-slate-200">Andres#Field2026</code></div>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Backend Status Indicator */}
-        <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-          <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 dark:text-bia-turquoise" />
-          <span>Servicio Go Backend activo en :8080</span>
-        </div>
       </div>
     </div>
   );
